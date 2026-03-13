@@ -1,0 +1,24 @@
+# Secrets
+.env
+*.key
+*.crt
+
+# Données utilisateurs
+badges.json
+users.json
+logs/
+mct_output/
+data/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Temp
+*.json.tmp
+badge_*.json
+cert.txt
+vigik_loader_cli.exe
+vigik_loader_cli
