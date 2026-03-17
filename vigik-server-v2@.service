@@ -1,0 +1,20 @@
+[Unit]
+Description=Badge Manager v2 Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=%i
+WorkingDirectory=/home/%i/Documents/Vigik
+Environment="PATH=/home/%i/Documents/Vigik/venv/bin:/usr/bin:/bin"
+EnvironmentFile=/home/%i/Documents/Vigik/.env
+ExecStart=/home/%i/Documents/Vigik/venv/bin/python3 /home/%i/Documents/Vigik/server_v2.py
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=badge-manager-v2
+
+[Install]
+WantedBy=multi-user.target

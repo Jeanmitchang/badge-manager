@@ -1,0 +1,26 @@
+# Environnement
+.env
+
+# Base de données
+data/
+*.db
+
+# Backups
+backups/
+
+# MCT générés
+mct_output/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# Certificats SSL
+*.crt
+*.key
+
+# Binaire Wine
+vigik_loader_cli.exe
+cert.txt

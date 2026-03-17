@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Badge Manager</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080c12;--bg2:#0f1620;--bg3:#172030;--bg4:#1e2d42;
+  --border:#1e2d42;--border2:#2a3f5f;
+  --cyan:#00c8f0;--teal:#00b894;--amber:#f59e0b;
+  --red:#ef4444;--green:#10b981;--purple:#8b5cf6;
+  --text:#dce8f5;--text2:#7a9ab8;--text3:#3a5570;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.hidden{display:none!important;}
+
+/* ── CHIPS ── */
+.chip{display:inline-flex;align-items:center;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;font-family:'DM Mono',monospace;}
+.c-ok{background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);}
+.c-warn{background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.25);}
+.c-err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.25);}
+.c-info{background:rgba(0,200,240,.08);color:var(--cyan);border:1px solid rgba(0,200,240,.2);}
+.c-susp{background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.18);}
+.c-dispo{background:rgba(16,185,129,.1);color:var(--green);border:1px solid rgba(16,185,129,.2);}
+.c-attrib{background:rgba(139,92,246,.1);color:var(--purple);border:1px solid rgba(139,92,246,.2);}
+
+/* ── LOGIN ── */
+#scr-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 15% 50%,rgba(0,200,240,.05) 0%,transparent 55%),var(--bg);}
+.lw{width:min(340px,100%);padding:0 16px;}
+.lh{text-align:center;margin-bottom:36px;}
+.lh-mark{width:60px;height:60px;margin:0 auto 18px;border-radius:16px;background:linear-gradient(135deg,rgba(0,200,240,.15),rgba(0,184,148,.1));border:1px solid rgba(0,200,240,.2);display:flex;align-items:center;justify-content:center;font-size:26px;}
+.lh h1{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;letter-spacing:-.5px;}
+.lh p{font-size:11px;color:var(--text3);margin-top:5px;font-family:'DM Mono',monospace;}
+.lf{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:28px 24px;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+.fi{margin-bottom:14px;}
+.fl{display:block;font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;}
+.inp{width:100%;padding:10px 13px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.inp:focus{border-color:#0099bb;}.inp::placeholder{color:var(--text3);}.inp-err{border-color:var(--red)!important;}
+.sel{width:100%;padding:9px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;font-family:'DM Sans',sans-serif;outline:none;}
+.btn-login{width:100%;padding:11px;background:var(--cyan);color:var(--bg);border:none;border-radius:8px;font-size:14px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s;}
+.btn-login:hover{background:#00b0d8;}
+.lerr{font-size:11px;color:var(--red);font-family:'DM Mono',monospace;margin-top:10px;text-align:center;min-height:16px;}
+
+/* ── APP LAYOUT ── */
+#scr-app{display:block;min-height:100vh;}
+/* sidebar — position fixed, ne contribue pas à la largeur du document */
+.sb{width:218px;height:100%;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;left:0;top:0;bottom:0;z-index:100;}
+.sb-hd{padding:20px 17px 0;}
+.sb-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;color:var(--text);letter-spacing:-.4px;display:flex;align-items:center;gap:7px;}
+.sb-lm{width:26px;height:26px;border-radius:6px;background:linear-gradient(135deg,rgba(0,200,240,.2),rgba(0,184,148,.15));border:1px solid rgba(0,200,240,.2);display:flex;align-items:center;justify-content:center;font-size:12px;}
+.sb-user{padding:13px 17px;border-bottom:1px solid var(--border);margin-top:13px;}
+.sb-un{font-size:13px;font-weight:600;color:var(--text);}
+.sb-uc{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;}
+.sb-nav{flex:1;padding:8px 0;overflow-y:auto;}
+.ns{padding:7px 17px 3px;font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1.5px;}
+.ni{display:flex;align-items:center;gap:8px;padding:8px 17px;cursor:pointer;transition:all .15s;color:var(--text2);font-size:12px;position:relative;}
+.ni:hover{background:rgba(255,255,255,.03);color:var(--text);}
+.ni.act{background:rgba(0,200,240,.07);color:var(--cyan);}
+.ni.act::before{content:'';position:absolute;left:0;top:4px;bottom:4px;width:2px;background:var(--cyan);border-radius:0 2px 2px 0;}
+.ni-i{font-size:14px;width:17px;text-align:center;}
+.ni-b{margin-left:auto;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:7px;font-family:'DM Mono',monospace;}
+.sb-ft{padding:13px 17px;border-top:1px solid var(--border);}
+.btn-out{width:100%;padding:7px;border-radius:6px;border:1px solid var(--border);background:transparent;color:var(--text2);font-size:11px;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.btn-out:hover{border-color:var(--red);color:var(--red);}
+
+/* contenu principal — décalé de la largeur sidebar sur desktop */
+.main{margin-left:218px;padding:24px 26px;min-height:100vh;}
+.page{display:none;}.page.act{display:block;animation:fi .2s ease;}
+@keyframes fi{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+/* ── TOPBAR ── */
+.tb{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;padding-bottom:16px;border-bottom:1px solid var(--border);}
+.tb-l{font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;}
+.tb-r{display:flex;align-items:center;gap:9px;}
+.tb-bell{position:relative;cursor:pointer;font-size:16px;padding:5px;border-radius:6px;transition:background .2s;}
+.tb-bell:hover{background:var(--bg3);}
+.tb-dot{position:absolute;top:4px;right:4px;width:6px;height:6px;background:var(--red);border-radius:50%;border:2px solid var(--bg2);}
+.tb-t{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+
+/* ── GRIDS ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:13px;margin-bottom:13px;}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:13px;margin-bottom:13px;}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:13px;margin-bottom:13px;}
+.g6040{display:grid;grid-template-columns:3fr 2fr;gap:13px;margin-bottom:13px;}
+
+/* ── CARD ── */
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:16px 18px;}
+.ct{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;}
+
+/* ── KPI ── */
+.kpi{background:var(--bg2);border:1px solid var(--border);border-radius:11px;padding:14px 16px;position:relative;overflow:hidden;}
+.kpi::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;}
+.kpi.k1::after{background:var(--cyan);}.kpi.k2::after{background:var(--teal);}.kpi.k3::after{background:var(--amber);}.kpi.k4::after{background:var(--purple);}
+.kpi-l{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;}
+.kpi-v{font-family:'Syne',sans-serif;font-size:28px;font-weight:800;margin:4px 0 2px;}
+.kpi.k1 .kpi-v{color:var(--cyan);}.kpi.k2 .kpi-v{color:var(--teal);}.kpi.k3 .kpi-v{color:var(--amber);}.kpi.k4 .kpi-v{color:var(--purple);}
+.kpi-s{font-size:10px;color:var(--text3);}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:4px;padding:6px 13px;border-radius:6px;border:none;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;font-weight:500;}
+.bp{background:var(--cyan);color:var(--bg);}.bp:hover{background:#00b0d8;}
+.bg{background:transparent;color:var(--text2);border:1px solid var(--border);}.bg:hover{border-color:var(--border2);color:var(--text);}
+.bd{background:transparent;color:var(--red);border:1px solid rgba(239,68,68,.25);}.bd:hover{background:rgba(239,68,68,.07);}
+.bw{background:transparent;color:var(--amber);border:1px solid rgba(245,158,11,.25);}.bw:hover{background:rgba(245,158,11,.07);}
+.bt{background:transparent;color:var(--teal);border:1px solid rgba(0,184,148,.25);}.bt:hover{background:rgba(0,184,148,.07);}
+.bp2{background:transparent;color:var(--purple);border:1px solid rgba(139,92,246,.25);}.bp2:hover{background:rgba(139,92,246,.07);}
+.sm{padding:3px 8px;font-size:10px;border-radius:5px;}.xs{padding:2px 6px;font-size:9px;border-radius:4px;}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tbl{width:100%;border-collapse:collapse;font-size:11px;}
+.tbl th{padding:8px 11px;text-align:left;font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border);font-weight:400;}
+.tbl td{padding:9px 11px;border-bottom:1px solid rgba(30,45,66,.35);color:var(--text2);vertical-align:middle;}
+.tbl tr:last-child td{border-bottom:none;}.tbl tr:hover td{background:rgba(255,255,255,.012);}
+.mc{color:var(--cyan);font-family:'DM Mono',monospace;font-size:10px;}
+
+/* ── HEATMAP ── */
+.hm-grid{display:grid;grid-template-columns:26px repeat(24,1fr);gap:2px;min-width:520px;}
+.hm-dl{font-size:8px;color:var(--text3);font-family:'DM Mono',monospace;display:flex;align-items:center;}
+.hm-hl{font-size:7px;color:var(--text3);font-family:'DM Mono',monospace;text-align:center;}
+.hm-c{height:18px;border-radius:2px;}
+.v0{background:var(--bg3);}.v1{background:rgba(0,200,240,.1);}.v2{background:rgba(0,200,240,.22);}.v3{background:rgba(0,200,240,.38);}.v4{background:rgba(0,200,240,.58);}.v5{background:rgba(0,200,240,.8);}
+
+/* ── HEALTH BARS ── */
+.hl-g{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+.hl-l{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-bottom:4px;display:flex;justify-content:space-between;}
+.hl-l span{color:var(--text);}
+.hl-b{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.hl-f{height:100%;border-radius:2px;}.ok{background:var(--teal);}.wa{background:var(--amber);}
+
+/* ── CHART ── */
+.ch-b{display:flex;align-items:flex-end;gap:3px;height:50px;}
+.ch-c{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.ch-bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;}
+
+/* ── LOGS ── */
+.log-s{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;}
+.le{display:flex;align-items:baseline;gap:9px;padding:5px 9px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;flex-wrap:wrap;}
+.le:hover{background:rgba(255,255,255,.02);}
+.lt{color:var(--text3);min-width:60px;}.lev{min-width:130px;}
+.lev.ok{color:var(--teal);}.lev.warn{color:var(--amber);}.lev.err{color:var(--red);}.lev.info{color:var(--cyan);}
+.ld{color:var(--text2);}
+
+/* ── USER ROWS ── */
+.ur{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:11px 13px;display:flex;align-items:center;gap:11px;margin-bottom:6px;transition:border-color .2s;flex-wrap:wrap;}
+.ur:hover{border-color:var(--border2);}
+.ur-av{width:33px;height:33px;border-radius:50%;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;}
+.ur-inf{flex:1;min-width:140px;}
+.ur-n{font-size:12px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;}
+.ur-m{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;}
+.ur-acts{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
+
+/* ── BADGE CARDS ── */
+.bg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(142px,1fr));gap:11px;}
+.bgc{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px;cursor:pointer;transition:all .2s;text-align:center;}
+.bgc:hover{border-color:#0099bb;transform:translateY(-2px);}
+.bgc.valid{border-top:2px solid var(--teal);}.bgc.expired{border-top:2px solid var(--red);opacity:.65;}
+.bgc-i{font-size:26px;display:block;margin-bottom:8px;}
+.bgc-n{font-size:12px;font-weight:600;color:var(--text);}
+.bgc-u{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:3px;}
+.bgc-s{margin-top:8px;}.bgc-e{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px;}
+.bgc.new-c{border:1px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--text3);min-height:130px;}
+.bgc.new-c:hover{border-color:var(--cyan);color:var(--cyan);}
+
+/* ── STOCK ROW ── */
+.stock-row{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 13px;display:flex;align-items:center;gap:12px;margin-bottom:6px;flex-wrap:wrap;}
+.stock-inf{flex:1;min-width:100px;}.stock-n{font-size:12px;font-weight:600;color:var(--text);}
+.stock-u{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;}
+
+/* ── DEMANDES ── */
+.dm{padding:12px 14px;border-radius:8px;border:1px solid var(--border);background:var(--bg3);margin-bottom:8px;}
+.dm-t{font-size:9px;font-family:'DM Mono',monospace;color:var(--amber);text-transform:uppercase;letter-spacing:.7px;}
+.dm-u{font-size:12px;font-weight:600;color:var(--text);margin-top:2px;}
+.dm-m{font-size:10px;color:var(--text3);margin-top:2px;}
+.dm-acts{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap;}
+
+/* ── MESSAGES ── */
+.msg-th{display:flex;flex-direction:column;gap:7px;max-height:280px;overflow-y:auto;padding:3px 0;margin-bottom:12px;}
+.mi{max-width:80%;padding:8px 12px;border-radius:9px;font-size:11px;line-height:1.6;}
+.mi.fu{background:var(--bg4);border:1px solid var(--border2);align-self:flex-start;}
+.mi.fa{background:rgba(0,200,240,.07);border:1px solid rgba(0,200,240,.15);align-self:flex-end;}
+.mm{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:3px;}
+.mc-wrap{display:flex;gap:7px;align-items:flex-end;}
+.mc-inp{flex:1;padding:8px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:11px;font-family:'DM Sans',sans-serif;outline:none;resize:none;}
+.mc-inp:focus{border-color:#0099bb;}
+.mc-ctr{font-size:9px;font-family:'DM Mono',monospace;color:var(--text3);text-align:right;margin-top:2px;}
+.conv-item{display:flex;align-items:center;gap:10px;padding:9px 11px;border-radius:7px;cursor:pointer;transition:background .15s;margin-bottom:4px;}
+.conv-item:hover{background:var(--bg3);}
+.conv-av{width:30px;height:30px;border-radius:50%;background:var(--bg4);display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0;}
+.conv-n{font-size:12px;font-weight:600;color:var(--text);}
+.conv-l{font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* ── GROUPS ── */
+.grp-card{background:var(--bg3);border:1px solid var(--border);border-radius:9px;padding:13px 15px;margin-bottom:8px;}
+.grp-hd{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;}
+.grp-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.grp-nm{font-size:13px;font-weight:600;color:var(--text);flex:1;}
+.grp-pills{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);}
+.grp-pill{background:var(--bg2);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-size:10px;color:var(--text2);font-family:'DM Mono',monospace;}
+
+/* ── LIMIT BAR ── */
+.lim-w{margin-bottom:12px;}
+.lim-ls{display:flex;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);margin-bottom:4px;}
+.lim-b{height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;}
+.lim-f{height:100%;border-radius:2px;transition:width .4s;}
+
+/* ── MODAL ── */
+.mo-ov{position:fixed;inset:0;background:rgba(0,0,0,.78);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;}
+.mo{background:var(--bg2);border:1px solid var(--border);border-radius:13px;padding:24px;width:100%;max-width:400px;box-shadow:0 20px 70px rgba(0,0,0,.7);max-height:90vh;overflow-y:auto;}
+.mo h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:4px;}
+.mo-sub{font-size:11px;color:var(--text2);margin-bottom:16px;}
+.mo-acts{display:flex;justify-content:flex-end;gap:7px;margin-top:18px;flex-wrap:wrap;}
+.fgi{margin-bottom:12px;}
+.fnote{font-size:10px;color:var(--text3);margin-top:5px;}
+.pwd-strength{height:3px;border-radius:2px;margin-top:4px;transition:all .3s;}
+.info-box{background:rgba(0,200,240,.05);border:1px solid rgba(0,200,240,.18);border-radius:7px;padding:9px 11px;font-size:10px;color:var(--text2);margin-bottom:8px;}
+
+/* ── ENCODE OVERLAY ── */
+.enc-ov{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:300;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:14px;}
+.enc-sp{width:48px;height:48px;border:2px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:sp 1s linear infinite;}
+@keyframes sp{to{transform:rotate(360deg)}}
+.enc-tx{font-family:'DM Mono',monospace;color:var(--cyan);font-size:13px;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:12px;font-family:'DM Mono',monospace;z-index:400;white-space:nowrap;max-width:90vw;text-align:center;}
+.toast-ok{background:rgba(0,184,148,.15);border:1px solid rgba(0,184,148,.3);color:var(--teal);}
+.toast-err{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:var(--red);}
+.toast-info{background:rgba(0,200,240,.12);border:1px solid rgba(0,200,240,.25);color:var(--cyan);}
+
+/* ── LOADING ── */
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--text3);font-family:'DM Mono',monospace;font-size:11px;gap:10px;}
+.ls{width:18px;height:18px;border:2px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:sp .8s linear infinite;}
+
+/* ── PAGE HEADER ── */
+.ph{margin-bottom:20px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.ph-l h2{font-family:'Syne',sans-serif;font-size:19px;font-weight:800;letter-spacing:-.3px;}
+.ph-l p{font-size:11px;color:var(--text2);margin-top:3px;}
+
+/* ── PWD BANNER ── */
+.pwd-banner{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:13px 16px;margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.pwd-banner p{font-size:12px;color:var(--amber);flex:1;min-width:160px;}
+
+/* ── HAMBURGER ── */
+.ham-btn{display:none;position:fixed;top:12px;left:12px;z-index:150;width:38px;height:38px;border-radius:8px;background:var(--bg2);border:1px solid var(--border);cursor:pointer;flex-direction:column;align-items:center;justify-content:center;gap:5px;}
+.ham-btn span{display:block;width:18px;height:2px;background:var(--text);border-radius:2px;}
+
+/* ── SIDEBAR OVERLAY (mobile) ── */
+.sb-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:90;}
+
+/* ══ RESPONSIVE ═══════════════════════════════════════════ */
+@media (max-width: 860px) {
+  /* afficher le hamburger */
+  .ham-btn { display: flex; }
+  /* décaler la topbar pour ne pas masquer le hamburger */
+  .tb { padding-left: 48px; }
+  /* le main prend toute la largeur — sidebar est en overlay */
+  .main { margin-left: 0; padding: 16px; }
+  /* sidebar cachée par défaut, glisse depuis la gauche */
+  .sb { transform: translateX(-100%); transition: transform .25s ease; z-index: 100; }
+  .sb.open { transform: translateX(0); }
+  /* overlay visible quand sidebar ouverte */
+  .sb.open ~ .sb-overlay { display: block; }
+  /* grilles */
+  .g4 { grid-template-columns: 1fr 1fr; }
+  .g6040 { grid-template-columns: 1fr; }
+  .g2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 540px) {
+  .main { padding: 12px; }
+  .g3 { grid-template-columns: 1fr 1fr; }
+  .kpi-v { font-size: 22px; }
+  .bg-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+  .mo { padding: 16px 14px; }
+  .ph { gap: 8px; }
+}
+</style>
+</head>
+<body>
+
+<!-- ══ LOGIN ══ -->
+<div id="scr-login">
+  <div class="lw">
+    <div class="lh">
+      <div class="lh-mark">🏷️</div>
+      <h1>Badge Manager</h1>
+      <p>CONTRÔLE D'ACCÈS</p>
+    </div>
+    <div class="lf">
+      <div class="fi"><label class="fl">Identifiant</label><input class="inp" id="li" placeholder="votre identifiant" autocomplete="username"></div>
+      <div class="fi"><label class="fl">Mot de passe</label><input class="inp" id="lp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
+      <button class="btn-login" onclick="doLogin()">Connexion</button>
+      <div class="lerr" id="lerr"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ APP ══ -->
+<div id="scr-app" class="hidden">
+
+  <!-- Hamburger mobile -->
+  <button class="ham-btn" id="ham-btn" onclick="toggleSidebar()" aria-label="Menu">
+    <span></span><span></span><span></span>
+  </button>
+
+  <!-- Sidebar -->
+  <nav class="sb" id="sb">
+    <div class="sb-hd">
+      <div class="sb-logo"><div class="sb-lm">🏷️</div>Badge Manager</div>
+      <div class="sb-user">
+        <div class="sb-un" id="sb-n">—</div>
+        <div class="sb-uc" id="sb-c">—</div>
+      </div>
+    </div>
+    <div class="sb-nav" id="sb-nav"></div>
+    <div class="sb-ft"><button class="btn-out" onclick="doLogout()">← Déconnexion</button></div>
+  </nav>
+
+  <!-- Overlay fond sidebar mobile -->
+  <div class="sb-overlay" id="sb-overlay" onclick="closeSidebar()"></div>
+
+  <!-- Contenu principal -->
+  <main class="main">
+    <div class="tb">
+      <div class="tb-l" id="tb-bc">—</div>
+      <div class="tb-r">
+        <div class="tb-bell" onclick="openNotifPanel()">🔔<div class="tb-dot hidden" id="tb-dot"></div></div>
+        <span class="tb-t" id="tb-t"></span>
+      </div>
+    </div>
+
+    <div class="pwd-banner hidden" id="pwd-banner">
+      <span style="font-size:18px;">⚠️</span>
+      <p>Changez votre mot de passe avant de continuer.</p>
+      <button class="btn bw sm" onclick="showP('params','params')">Changer →</button>
+    </div>
+
+    <!-- SUPERADMIN -->
+    <div class="page" id="p-sa-dash"><div class="ph"><div class="ph-l"><h2>Tableau de bord</h2></div></div><div id="c-sa-dash"><div class="loading"><div class="ls"></div>Chargement...</div></div></div>
+    <div class="page" id="p-sa-admins"><div class="ph"><div class="ph-l"><h2>Admins</h2></div><button class="btn bp" onclick="createAdmin_open()">+ Nouvel admin</button></div><div class="card"><div id="c-sa-admins"><div class="loading"><div class="ls"></div></div></div></div></div>
+    <div class="page" id="p-sa-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn bg" onclick="openMoNewGrp()">+ Groupe</button><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div></div><div id="c-sa-users"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-badges"><div class="ph"><div class="ph-l"><h2>Gestion des badges</h2></div><button class="btn bp" onclick="openMo('mo-stock-badge')">+ Référencer</button></div><div id="c-sa-badges"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-dem"><div class="ph"><div class="ph-l"><h2>Demandes</h2></div></div><div id="c-sa-dem"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-sa-msgs"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-journal"><div class="ph"><div class="ph-l"><h2>Journal</h2></div><button class="btn bg sm" onclick="loadLogs()">↻</button></div><div class="card"><div class="log-s" id="log-s"><div class="loading"><div class="ls"></div></div></div></div></div>
+    <div class="page" id="p-sa-params"><div class="ph"><div class="ph-l"><h2>Paramètres</h2></div></div><div id="c-sa-params"><div class="loading"><div class="ls"></div></div></div></div>
+
+    <!-- ADMIN -->
+    <div class="page" id="p-adm-dash"><div class="ph"><div class="ph-l"><h2>Tableau de bord</h2></div></div><div id="c-adm-dash"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-adm-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div><div id="c-adm-users"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-adm-grps"><div class="ph"><div class="ph-l"><h2>Groupes</h2></div><button class="btn bp" onclick="openMoNewGrp()">+ Groupe</button></div><div id="c-adm-grps"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-adm-dem"><div class="ph"><div class="ph-l"><h2>Demandes</h2></div></div><div id="c-adm-dem"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-adm-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-adm-msgs"><div class="loading"><div class="ls"></div></div></div></div>
+
+    <!-- USER -->
+    <div class="page" id="p-usr-badges"><div class="ph"><div class="ph-l"><h2>Mes badges</h2></div></div><div id="c-usr-badges"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-usr-mct"><div class="ph"><div class="ph-l"><h2>Mes MCT</h2></div></div><div id="c-usr-mct"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-usr-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-usr-msgs"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-usr-dem"><div class="ph"><div class="ph-l"><h2>Mes demandes</h2></div></div><div id="c-usr-dem"><div class="loading"><div class="ls"></div></div></div></div>
+
+    <!-- PARAMS commun -->
+    <div class="page" id="p-params">
+      <div class="ph"><div class="ph-l"><h2>Mon compte</h2></div></div>
+      <div class="card" style="max-width:380px;">
+        <div class="ct">Changer mon mot de passe</div>
+        <div class="fgi"><label class="fl">Mot de passe actuel</label><input class="inp" type="password" id="pwd-cur" placeholder="••••••••"></div>
+        <div class="fgi"><label class="fl">Nouveau (6–14 car.)</label><input class="inp" type="password" id="pwd-new" placeholder="••••••••" oninput="checkPwdStr()" maxlength="14"><div class="pwd-strength" id="pwd-str"></div></div>
+        <div class="fgi"><label class="fl">Confirmer</label><input class="inp" type="password" id="pwd-cfm" placeholder="••••••••" maxlength="14"></div>
+        <div id="pwd-err" style="font-size:11px;color:var(--red);margin-bottom:8px;font-family:'DM Mono',monospace;min-height:14px;"></div>
+        <button class="btn bp" onclick="doChangePwd()">Mettre à jour</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ MODALS ══ -->
+<div class="mo-ov hidden" id="mo-new-admin" onclick="closeMoOv(event,'mo-new-admin')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Nouvel administrateur</h3><p class="mo-sub">Créé uniquement par le superadmin</p>
+  <div class="fgi"><label class="fl">Identifiant</label><input class="inp" id="ma-login" placeholder="Ex: admin.dupont"></div>
+  <div class="fgi"><label class="fl">Mot de passe temporaire (6–14 car.)</label><input class="inp" id="ma-pwd" type="password" maxlength="14"></div>
+  <div class="fgi"><label class="fl">Limite de groupes (0=illimité)</label><input type="number" class="inp" id="ma-glim" value="0" min="0" style="width:80px;"></div>
+  <div class="fgi"><label class="fl">Durée token JWT</label><select class="sel" id="ma-ttl"><option value="1">1 heure</option><option value="24" selected>24 heures</option><option value="168">7 jours</option><option value="720">30 jours</option></select></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-new-admin')">Annuler</button><button class="btn bp" onclick="createAdmin()">Créer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-new-user" onclick="closeMoOv(event,'mo-new-user')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Nouvel utilisateur</h3>
+  <div class="fgi"><label class="fl">Identifiant</label><input class="inp" id="mu-login" placeholder="Ex: user.dupont"></div>
+  <div class="fgi"><label class="fl">Mot de passe temporaire (6–14 car.)</label><input class="inp" id="mu-pwd" type="password" maxlength="14"></div>
+  <div class="fgi hidden" id="mu-admin-wrap"><label class="fl">Admin responsable</label><select class="sel" id="mu-admin-sel"></select></div>
+  <div class="fgi"><label class="fl">Groupe</label><select class="sel" id="mu-grp-sel"></select></div>
+  <div class="fgi"><label class="fl">Quota badges</label><input type="number" class="inp" id="mu-quota" value="5" min="1" max="100" style="width:70px;"></div>
+  <div class="fgi"><label class="fl">Durée token JWT</label><select class="sel" id="mu-ttl"><option value="1">1 heure</option><option value="24" selected>24 heures</option><option value="168">7 jours</option><option value="720">30 jours</option></select></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-new-user')">Annuler</button><button class="btn bp" onclick="createUser()">Créer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-edit-user" onclick="closeMoOv(event,'mo-edit-user')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Éditer</h3><p class="mo-sub" id="eu-sub">—</p>
+  <input type="hidden" id="eu-id">
+  <div class="fgi"><label class="fl">Quota badges</label><input type="number" class="inp" id="eu-quota" value="5" min="1" max="100" style="width:70px;"></div>
+  <div class="fgi"><label class="fl">Durée token JWT</label><select class="sel" id="eu-ttl"><option value="1">1 heure</option><option value="24">24 heures</option><option value="168">7 jours</option><option value="720">30 jours</option></select></div>
+  <div class="fgi"><label class="fl">Statut</label><select class="sel" id="eu-active"><option value="1">Actif</option><option value="0">Bloqué</option></select></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-edit-user')">Annuler</button><button class="btn bp" id="eu-save-btn" onclick="saveEditUser()">Sauvegarder</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-move-grp" onclick="closeMoOv(event,'mo-move-grp')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Changer de groupe</h3>
+  <input type="hidden" id="mg-uid">
+  <div class="fgi"><label class="fl">Groupe actuel</label><input class="inp" id="mg-from" readonly style="color:var(--text3);"></div>
+  <div class="fgi"><label class="fl">Nouveau groupe</label><select class="sel" id="mg-to-sel"></select></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-move-grp')">Annuler</button><button class="btn bp" onclick="moveUserGroup()">Déplacer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-reset-pwd" onclick="closeMoOv(event,'mo-reset-pwd')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Réinitialiser le mot de passe</h3>
+  <input type="hidden" id="rp-uid">
+  <div class="fgi"><label class="fl">Utilisateur</label><input class="inp" id="rp-login" readonly></div>
+  <div class="fgi"><label class="fl">Nouveau MDP (6–14 car.)</label><input class="inp" id="rp-pwd" type="password" maxlength="14"></div>
+  <div class="fgi"><label style="display:flex;align-items:center;gap:7px;cursor:pointer;"><input type="checkbox" id="rp-wipe" style="accent-color:var(--red);width:14px;height:14px;"><span style="font-size:11px;color:var(--text2);">Supprimer tous les badges</span></label></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-reset-pwd')">Annuler</button><button class="btn bp" onclick="doResetPwd()">Réinitialiser</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-new-grp" onclick="closeMoOv(event,'mo-new-grp')"><div class="mo" onclick="event.stopPropagation()">
+  <h3 id="ng-title">Nouveau groupe</h3>
+  <div class="fgi"><label class="fl">Nom</label><input class="inp" id="ng-name" placeholder="Ex: Groupe Printemps"></div>
+  <div class="fgi"><label class="fl">Couleur</label><div style="display:flex;gap:7px;margin-top:4px;" id="ng-colors">
+    <div onclick="selColor(this,'#8b5cf6')" style="width:22px;height:22px;border-radius:50%;background:#8b5cf6;cursor:pointer;border:2px solid var(--cyan)"></div>
+    <div onclick="selColor(this,'#00b894')" style="width:22px;height:22px;border-radius:50%;background:#00b894;cursor:pointer;"></div>
+    <div onclick="selColor(this,'#f59e0b')" style="width:22px;height:22px;border-radius:50%;background:#f59e0b;cursor:pointer;"></div>
+    <div onclick="selColor(this,'#00c8f0')" style="width:22px;height:22px;border-radius:50%;background:#00c8f0;cursor:pointer;"></div>
+    <div onclick="selColor(this,'#ef4444')" style="width:22px;height:22px;border-radius:50%;background:#ef4444;cursor:pointer;"></div>
+  </div></div>
+  <div class="mo-acts" id="ng-acts"><button class="btn bg" onclick="closeMo('mo-new-grp')">Annuler</button><button class="btn bp" onclick="createGroup()">Créer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-new-badge" onclick="closeMoOv(event,'mo-new-badge')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Nouveau badge</h3>
+  <div class="fgi"><label class="fl">Nom</label><input class="inp" id="nb-name" placeholder="Ex: Badge Entrée"></div>
+  <div class="fgi"><label class="fl">UID (8 caractères hex)</label><input class="inp" id="nb-uid" placeholder="Ex: 4360273E" style="font-family:'DM Mono',monospace;" maxlength="8" oninput="this.value=this.value.toUpperCase()"></div>
+  <div class="fgi"><label class="fl">Icône</label><div id="nb-icons" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+    <span onclick="selIcon(this,'nb')" data-icon="🔑" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--cyan);">🔑</span>
+    <span onclick="selIcon(this,'nb')" data-icon="🚪" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚪</span>
+    <span onclick="selIcon(this,'nb')" data-icon="🏚️" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🏚️</span>
+    <span onclick="selIcon(this,'nb')" data-icon="🏢" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🏢</span>
+    <span onclick="selIcon(this,'nb')" data-icon="🚗" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚗</span>
+    <span onclick="selIcon(this,'nb')" data-icon="⭐" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">⭐</span>
+  </div></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-new-badge')">Annuler</button><button class="btn bp" onclick="createBadge()">Créer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-edit-badge" onclick="closeMoOv(event,'mo-edit-badge')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Éditer le badge</h3>
+  <input type="hidden" id="eb-id">
+  <div class="fgi"><label class="fl">Nom</label><input class="inp" id="eb-name"></div>
+  <div class="fgi"><label class="fl">UID</label><input class="inp" id="eb-uid" style="font-family:'DM Mono',monospace;" maxlength="8" oninput="this.value=this.value.toUpperCase()"></div>
+  <div class="fgi"><label class="fl">Icône</label><div id="eb-icons" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+    <span onclick="selIcon(this,'eb')" data-icon="🔑" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🔑</span>
+    <span onclick="selIcon(this,'eb')" data-icon="🚪" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚪</span>
+    <span onclick="selIcon(this,'eb')" data-icon="🏚️" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🏚️</span>
+    <span onclick="selIcon(this,'eb')" data-icon="🏢" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🏢</span>
+    <span onclick="selIcon(this,'eb')" data-icon="🚗" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚗</span>
+    <span onclick="selIcon(this,'eb')" data-icon="⭐" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">⭐</span>
+  </div></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-edit-badge')">Annuler</button><button class="btn bp" onclick="saveEditBadge()">Sauvegarder</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-stock-badge" onclick="closeMoOv(event,'mo-stock-badge')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Référencer un badge stock</h3>
+  <div class="fgi"><label class="fl">Nom</label><input class="inp" id="sb-name" placeholder="Ex: Badge Hall A"></div>
+  <div class="fgi"><label class="fl">UID</label><input class="inp" id="sb-uid" placeholder="Ex: 4360273E" style="font-family:'DM Mono',monospace;" maxlength="8" oninput="this.value=this.value.toUpperCase()"></div>
+  <div class="fgi"><label class="fl">Icône</label><div id="sb-icons" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
+    <span onclick="selIcon(this,'sb')" data-icon="🔑" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--cyan);">🔑</span>
+    <span onclick="selIcon(this,'sb')" data-icon="🚪" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚪</span>
+    <span onclick="selIcon(this,'sb')" data-icon="🏢" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🏢</span>
+    <span onclick="selIcon(this,'sb')" data-icon="🚗" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚗</span>
+  </div></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-stock-badge')">Annuler</button><button class="btn bp" onclick="createStockBadge()">Référencer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-attrib" onclick="closeMoOv(event,'mo-attrib')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Attribuer un badge</h3>
+  <input type="hidden" id="at-bid">
+  <div class="fgi"><label class="fl">Badge</label><input class="inp" id="at-badge-name" readonly></div>
+  <div class="fgi"><label class="fl">Attribuer à</label><select class="sel" id="at-sel"></select></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-attrib')">Annuler</button><button class="btn bp" onclick="doAttrib()">Attribuer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-request" onclick="closeMoOv(event,'mo-request')"><div class="mo" onclick="event.stopPropagation()">
+  <h3 id="req-title">Nouvelle demande</h3>
+  <input type="hidden" id="req-type">
+  <div class="fgi"><label class="fl">Motif (optionnel, max 280 car.)</label><textarea class="inp" id="req-motif" rows="3" style="resize:none;" maxlength="280"></textarea></div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-request')">Annuler</button><button class="btn bp" onclick="submitRequest()">Envoyer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-confirm" onclick="closeMoOv(event,'mo-confirm')"><div class="mo" onclick="event.stopPropagation()">
+  <h3 id="confirm-title">Confirmer</h3>
+  <p class="mo-sub" id="confirm-msg"></p>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-confirm')">Annuler</button><button class="btn bd" id="confirm-btn">Confirmer</button></div>
+</div></div>
+
+<!-- Encode overlay -->
+<div class="enc-ov hidden" id="enc-ov">
+  <div class="enc-sp"></div>
+  <div class="enc-tx" id="enc-tx">Génération en cours...</div>
+</div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
