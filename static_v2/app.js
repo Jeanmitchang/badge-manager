@@ -235,7 +235,7 @@ async function openNotifPanel(){
       </div>`;
     if(!notifs.length){html+='<div style="padding:20px;text-align:center;font-size:11px;color:var(--text3);">Aucune notification</div>';}
     else{
-      const ic={new_message:'💬',new_request:'📨',request_handled:'✓',badge_attributed:'🏷️',system_alert:'⚠️',group_change:'🔄',delete_user:'🗑',user_assigned:'👤',group_deleted:'🗑'};
+      const ic={new_message:'💬',new_request:'📨',request_handled:'✓',badge_attributed:'🏷️',system_alert:'⚠️',group_change:'🔄',delete_user:'🗑',user_assigned:'👤',group_deleted:'🗑',dispatch:'↗'};
       notifs.slice(0,15).forEach(n=>{
         html+=`<div style="padding:9px 14px;border-bottom:1px solid rgba(30,45,66,.4);${!n.is_read?'background:rgba(0,200,240,.04)':''}">
           <div style="font-size:11px;font-weight:600;color:var(--text);">${ic[n.type]||'🔔'} ${n.title}</div>
@@ -515,14 +515,38 @@ async function sendNewMsg(cid){
 async function loadLogs(){
   const el=document.getElementById('log-s');
   try{
-    const logs=await api('GET','/api/logs?limit=100');
+    const logs=await api('GET','/api/logs?limit=200');
     if(!logs.length){el.innerHTML=emptyHtml('Aucun événement');return;}
     el.innerHTML=logs.map(l=>{
       const tp=l.event.includes('echec')||l.event.includes('error')?'err':l.event.includes('limit')||l.event.includes('delet')||l.event.includes('block')?'warn':l.event.includes('ok')||l.event.includes('created')||l.event.includes('generated')?'ok':'info';
-      let detail='';try{const d=JSON.parse(l.detail||'{}');detail=d.badge||d.reason||d.action||'';}catch{}
-      return`<div class="le"><span class="lt">${fmtDate(l.created_at,true)}</span><span class="lev ${tp}">${l.event}</span><span class="ld">${l.user_login||''} ${detail?'— '+detail:''}</span></div>`;
+      let detail='';try{const d=JSON.parse(l.detail||'{}');detail=d.badge||d.reason||d.action||d.name||'';}catch{}
+      const devIco=l.device==='mobile'?'📱':l.device==='tablet'?'📟':l.device?'🖥':'';
+      const ip=l.ip&&l.ip!=='unknown'?`<span style="color:var(--text3);"> · ${l.ip}</span>`:'';
+      const role=l.role?`<span class="chip c-info" style="font-size:8px;padding:1px 5px;margin-left:3px;">${l.role}</span>`:'';
+      return`<div class="le">
+        <span class="lt">${fmtDate(l.created_at,true)}</span>
+        <span class="lev ${tp}">${l.event}</span>
+        <span class="ld">${l.user_login||''}${role}${detail?' — '+detail:''}${ip} ${devIco}</span>
+      </div>`;
     }).join('');
   }catch(e){el.innerHTML=errHtml(e);}
+}
+
+async function exportLogs(format='json'){
+  try{
+    const resp = await fetch(`/api/logs/export?format=${format}`, {
+      headers: {'Authorization': `Bearer ${S.token}`}
+    });
+    if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur export');}
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `logs_${new Date().toISOString().slice(0,10)}.${format}`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast(`Journal exporté en ${format.toUpperCase()} ✓`,'ok');
+  }catch(e){toast(e.message,'err');}
 }
 
 // ─── SA PARAMS ────────────────────────────────────────────
@@ -692,6 +716,11 @@ function renderUser(u,groups,isSa=true){
   const grp=groups.find(g=>g.id===u.group_id);
   const bpct=Math.min(100,Math.round((u.badges_count||0)/u.badge_quota*100));
   const st=u.is_deleted?'<span class="chip c-susp">Suspendu</span>':!u.is_active?'<span class="chip c-err">Bloqué</span>':'<span class="chip c-ok">Actif</span>';
+  const hasAdmin=!!u.admin_id;
+  const saBtns=isSa?(hasAdmin
+    ?`<button class="btn bp2 xs" onclick="openDispatch('user_to_admin','${u.id}')" title="Dispatcher cet utilisateur">↗</button>`
+    :`<button class="btn bt xs" onclick="openDispatchUser('${u.id}')" title="Assigner un admin / un groupe">+ Assigner</button>`)
+    :'';
   const admBtns=!isSa?`<button class="btn bg xs" onclick="openEditUser('${u.id}',${u.badge_quota},${u.jwt_ttl_hours},${u.is_active})" title="Éditer">✏️</button><button class="btn bp2 xs" onclick="openMoveGrp('${u.id}','${grp?grp.name:''}')" title="Changer groupe">🔄</button>`:'';
   return`<div class="ur">
     <div class="ur-av">👤</div>
@@ -701,12 +730,104 @@ function renderUser(u,groups,isSa=true){
     </div>
     ${st}
     <div class="ur-acts">
+      ${saBtns}
       ${admBtns}
       <button class="btn bg xs" onclick="openResetPwd('${u.id}','${u.login}')" title="Reset MDP">🔑</button>
       <button class="btn bw xs" onclick="toggleBlock('${u.id}',${u.is_active},false)">${u.is_active?'⛔':'✓'}</button>
       <button class="btn bd xs" onclick="confirmAction('Supprimer ${u.login} ?','Soft delete — validé par superadmin.',()=>delUser('${u.id}',false))">🗑</button>
     </div>
   </div>`;
+}
+
+// ─── IMPORT / EXPORT BADGES ───────────────────────────────
+async function exportBadges(){
+  try{
+    // Fetch avec le token en header Authorization
+    const resp = await fetch('/api/badges/export', {
+      headers: {'Authorization': `Bearer ${S.token}`}
+    });
+    if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur export');}
+    const blob = await resp.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `badges_${S.login}_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('Badges exportés ✓','ok');
+  }catch(e){toast(e.message,'err');}
+}
+
+function openImportBadges(){
+  const inp=document.createElement('input');
+  inp.type='file';inp.accept='.json';
+  inp.onchange=async(e)=>{
+    const file=e.target.files[0];if(!file)return;
+    try{
+      const txt=await file.text();
+      const data=JSON.parse(txt);
+      const badges=data.badges||data;
+      if(!Array.isArray(badges)||!badges.length){toast('Fichier invalide ou vide','err');return;}
+      // Pré-vérification doublons
+      const existing=await api('GET','/api/badges');
+      const existingUids=new Set(existing.map(b=>b.uid.toUpperCase()));
+      const doublons=badges.filter(b=>existingUids.has((b.uid||'').toUpperCase()));
+      const newOnes=badges.filter(b=>!existingUids.has((b.uid||'').toUpperCase()));
+      if(doublons.length>0){
+        // Modale de confirmation doublons
+        showImportConfirm(badges, newOnes, doublons);
+      } else {
+        await doImport(badges, false);
+      }
+    }catch(e){toast('Erreur import : '+e.message,'err');}
+  };
+  inp.click();
+}
+
+function showImportConfirm(allBadges, newOnes, doublons){
+  // Supprimer popup existant
+  document.getElementById('import-popup')?.remove();
+  const div=document.createElement('div');
+  div.id='import-popup';
+  div.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:20px;width:min(380px,92vw);z-index:250;box-shadow:0 16px 50px rgba(0,0,0,.6);';
+  div.innerHTML=`
+    <h3 style="font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:8px;">Doublons détectés</h3>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:12px;">${newOnes.length} nouveau(x) · <span style="color:var(--amber);">${doublons.length} doublon(s)</span></p>
+    <div style="background:var(--bg3);border-radius:7px;padding:8px 10px;margin-bottom:12px;max-height:120px;overflow-y:auto;">
+      ${doublons.map(b=>`<div style="font-size:10px;font-family:'DM Mono',monospace;color:var(--amber);">⚠ ${b.name} — ${b.uid}</div>`).join('')}
+    </div>
+    <p style="font-size:11px;color:var(--text2);margin-bottom:14px;">Que faire avec les doublons ?</p>
+    <div style="display:flex;flex-direction:column;gap:7px;">
+      <button class="btn bp" style="width:100%;" onclick="doImportChoice('skip',${JSON.stringify(allBadges).replace(/'/g,'&#39;')})">Ignorer les doublons — importer uniquement les nouveaux (${newOnes.length})</button>
+      <button class="btn bw" style="width:100%;" onclick="doImportChoice('all',${JSON.stringify(allBadges).replace(/'/g,'&#39;')})">Tout importer — tenter même les doublons</button>
+      <button class="btn bg" style="width:100%;" onclick="document.getElementById('import-popup').remove()">Annuler</button>
+    </div>`;
+  document.body.appendChild(div);
+}
+
+async function doImportChoice(mode, badges){
+  document.getElementById('import-popup')?.remove();
+  // Si mode skip : filtrer les doublons avant envoi
+  if(mode==='skip'){
+    const existing=await api('GET','/api/badges');
+    const existingUids=new Set(existing.map(b=>b.uid.toUpperCase()));
+    badges=badges.filter(b=>!existingUids.has((b.uid||'').toUpperCase()));
+  }
+  await doImport(badges, mode==='all');
+}
+
+async function doImport(badges, overwrite){
+  try{
+    const r=await api('POST','/api/badges/import',{badges,overwrite});
+    let msg=`${r.imported} badge(s) importé(s)`;
+    if(r.skipped) msg+=`, ${r.skipped} ignoré(s)`;
+    toast(msg,'ok');
+    if(r.errors?.length) toast(r.errors[0],'err');
+    // Recharger la bonne page selon le rôle
+    if(S.role==='user') await loadUsrBadges();
+    else if(S.role==='admin') await loadAdmUsers();
+    else await loadSaBadges();
+  }catch(e){toast(e.message,'err');}
 }
 
 // ─── ACTIONS : ADMINS ─────────────────────────────────────
@@ -1071,6 +1192,78 @@ async function submitRequest(){
     await api('POST','/api/requests',{type,motif});
     toast('Demande envoyée','ok');closeMo('mo-request');
     type==='mct_rallonge'?await loadUsrMct():await loadUsrBadges();
+  }catch(e){toast(e.message,'err');}
+}
+
+// ─── DISPATCH (superadmin) ────────────────────────────────
+function onDispatchTypeChange(){
+  const type=document.getElementById('dp-type').value;
+  document.getElementById('dp-user-wrap').classList.toggle('hidden',type==='group_to_admin');
+  document.getElementById('dp-group-wrap').classList.toggle('hidden',type==='user_to_admin');
+  document.getElementById('dp-admin-wrap').classList.toggle('hidden',type==='user_to_group');
+  const noteWrap=document.getElementById('dp-note-wrap');
+  const note=document.getElementById('dp-note');
+  if(type==='user_to_group'){
+    note.textContent="L'admin sera automatiquement celui du groupe sélectionné.";
+    noteWrap.classList.remove('hidden');
+  } else if(type==='group_to_admin'){
+    note.textContent="Tous les utilisateurs du groupe seront transférés à ce nouvel admin.";
+    noteWrap.classList.remove('hidden');
+  } else {
+    noteWrap.classList.add('hidden');
+  }
+}
+
+async function openDispatchUser(userId){
+  // Ouvre la modale dispatch pour un user sans admin, avec choix explicite du type
+  await openDispatch('user_to_admin',userId);
+  // Activer le sélecteur de type pour que l'utilisateur voie les deux options
+  const typeSel=document.getElementById('dp-type');
+  if(typeSel){
+    // Ajouter une note dans le label type
+    const lbl=typeSel.previousElementSibling;
+    if(lbl) lbl.textContent='Type — choisissez l\'une ou l\'autre :';
+  }
+}
+
+async function openDispatch(preType,preId){
+  try{
+    const[users,admins,groups]=await Promise.all([api('GET','/api/users'),api('GET','/api/admins'),api('GET','/api/groups')]);
+    S.users=users;S.admins=admins;S.groups=groups;
+    const usel=document.getElementById('dp-user-sel');
+    usel.innerHTML=users.filter(u=>!u.is_deleted).map(u=>{
+      const grp=groups.find(g=>g.id===u.group_id);
+      return`<option value="${u.id}">${u.login}${grp?' ('+grp.name+')':''}</option>`;
+    }).join('');
+    document.getElementById('dp-admin-sel').innerHTML=
+      admins.map(a=>`<option value="${a.id}">${a.login}</option>`).join('');
+    document.getElementById('dp-group-sel').innerHTML=
+      groups.map(g=>`<option value="${g.id}">${g.name} — ${g.admin_login||'?'}</option>`).join('');
+    const typeSel=document.getElementById('dp-type');
+    typeSel.value=preType||'user_to_admin';
+    if(preId){
+      if(!preType||preType==='user_to_admin'||preType==='user_to_group') usel.value=preId;
+      else if(preType==='group_to_admin') document.getElementById('dp-group-sel').value=preId;
+    }
+    onDispatchTypeChange();
+  }catch(e){toast(e.message,'err');return;}
+  openMo('mo-dispatch');
+}
+
+async function doDispatch(){
+  const type=document.getElementById('dp-type').value;
+  const body={type};
+  if(type!=='group_to_admin') body.user_id=document.getElementById('dp-user-sel').value;
+  if(type!=='user_to_admin') body.group_id=document.getElementById('dp-group-sel').value;
+  if(type!=='user_to_group') body.admin_id=document.getElementById('dp-admin-sel').value;
+  try{
+    const res=await api('POST','/api/superadmin/dispatch',body);
+    const msg={
+      group_to_admin:`Groupe « ${res.group} » dispatché à ${res.admin} — ${res.users_moved} user(s) notifié(s)`,
+      user_to_group:`${res.user} placé dans le groupe ${res.group}`,
+      user_to_admin:`${res.user} assigné à l'admin ${res.admin}`,
+    }[type]||'Dispatch effectué';
+    toast(msg,'ok');closeMo('mo-dispatch');await loadSaUsers();
   }catch(e){toast(e.message,'err');}
 }
 

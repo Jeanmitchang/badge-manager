@@ -137,6 +137,8 @@ CREATE TABLE IF NOT EXISTS activity_log (
     group_id   TEXT,
     admin_id   TEXT,
     ip         TEXT,
+    user_agent TEXT,
+    device     TEXT,
     detail     TEXT,
     created_at TEXT NOT NULL
 );
@@ -401,10 +403,16 @@ def delete_badge(bid: str):
 
 def count_user_badges(user_id: str) -> int:
     with db() as conn:
-        return conn.execute(
+        # Badges normaux + badges stock attribués à cet utilisateur
+        own = conn.execute(
             "SELECT COUNT(*) FROM badges WHERE owner_id=? AND is_stock=0",
             (user_id,)
         ).fetchone()[0]
+        attributed = conn.execute(
+            "SELECT COUNT(*) FROM badges WHERE is_stock=1 AND attributed_to=?",
+            (user_id,)
+        ).fetchone()[0]
+        return own + attributed
 
 def wipe_user_badges(user_id: str):
     with db() as conn:
@@ -620,14 +628,15 @@ def count_unread_notifs(user_id: str) -> int:
 
 def log_event(event: str, user_id: str = None, user_login: str = None,
               role: str = None, group_id: str = None, admin_id: str = None,
-              ip: str = None, detail: dict = None):
+              ip: str = None, user_agent: str = None, device: str = None,
+              detail: dict = None):
     with db() as conn:
         conn.execute("""
             INSERT INTO activity_log
-            (id,event,user_id,user_login,role,group_id,admin_id,ip,detail,created_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
+            (id,event,user_id,user_login,role,group_id,admin_id,ip,user_agent,device,detail,created_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, (new_id(), event, user_id, user_login, role, group_id, admin_id,
-              ip, _json.dumps(detail or {}), now()))
+              ip, user_agent, device, _json.dumps(detail or {}), now()))
 
 def get_logs(limit: int = 100, event_filter: str = None) -> list:
     with db() as conn:

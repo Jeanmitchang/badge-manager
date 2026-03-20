@@ -341,23 +341,23 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
     <!-- SUPERADMIN -->
     <div class="page" id="p-sa-dash"><div class="ph"><div class="ph-l"><h2>Tableau de bord</h2></div></div><div id="c-sa-dash"><div class="loading"><div class="ls"></div>Chargement...</div></div></div>
-    <div class="page" id="p-sa-admins"><div class="ph"><div class="ph-l"><h2>Admins</h2></div><button class="btn bp" onclick="createAdmin_open()">+ Nouvel admin</button></div><div class="card"><div id="c-sa-admins"><div class="loading"><div class="ls"></div></div></div></div></div>
-    <div class="page" id="p-sa-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn bg" onclick="openMoNewGrp()">+ Groupe</button><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div></div><div id="c-sa-users"><div class="loading"><div class="ls"></div></div></div></div>
-    <div class="page" id="p-sa-badges"><div class="ph"><div class="ph-l"><h2>Gestion des badges</h2></div><button class="btn bp" onclick="openMo('mo-stock-badge')">+ Référencer</button></div><div id="c-sa-badges"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-admins"><div class="ph"><div class="ph-l"><h2>Admins</h2></div><button class="btn bp" onclick="openMo('mo-new-admin')">+ Nouvel admin</button></div><div class="card"><div id="c-sa-admins"><div class="loading"><div class="ls"></div></div></div></div></div>
+    <div class="page" id="p-sa-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><div style="display:flex;gap:8px;flex-wrap:wrap;"><button class="btn bg" onclick="openMoNewGrp()">+ Groupe</button><button class="btn bp2" onclick="openDispatch()">↗ Dispatcher</button><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div></div><div id="c-sa-users"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-sa-badges"><div class="ph"><div class="ph-l"><h2>Gestion des badges</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="exportBadges()">⬇ Exporter</button><button class="btn bg sm" onclick="openImportBadges()">⬆ Importer</button><button class="btn bp" onclick="openMo('mo-stock-badge')">+ Référencer</button></div></div><div id="c-sa-badges"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-sa-dem"><div class="ph"><div class="ph-l"><h2>Demandes</h2></div></div><div id="c-sa-dem"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-sa-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-sa-msgs"><div class="loading"><div class="ls"></div></div></div></div>
-    <div class="page" id="p-sa-journal"><div class="ph"><div class="ph-l"><h2>Journal</h2></div><button class="btn bg sm" onclick="loadLogs()">↻</button></div><div class="card"><div class="log-s" id="log-s"><div class="loading"><div class="ls"></div></div></div></div></div>
+    <div class="page" id="p-sa-journal"><div class="ph"><div class="ph-l"><h2>Journal</h2><p style="font-size:11px;color:var(--text2);">Activité récente — <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);">python3 log_tail.py -f</span> pour le suivi terminal</p></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="loadLogs()">↻ Rafraîchir</button><button class="btn bt sm" onclick="exportLogs('json')">⬇ JSON</button><button class="btn bg sm" onclick="exportLogs('csv')">⬇ CSV</button><a class="btn bp2 sm" href="/static/log_reader.html" target="_blank">📋 Reader</a></div></div><div class="card"><div class="log-s" id="log-s"><div class="loading"><div class="ls"></div></div></div></div></div>
     <div class="page" id="p-sa-params"><div class="ph"><div class="ph-l"><h2>Paramètres</h2></div></div><div id="c-sa-params"><div class="loading"><div class="ls"></div></div></div></div>
 
     <!-- ADMIN -->
     <div class="page" id="p-adm-dash"><div class="ph"><div class="ph-l"><h2>Tableau de bord</h2></div></div><div id="c-adm-dash"><div class="loading"><div class="ls"></div></div></div></div>
-    <div class="page" id="p-adm-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div><div id="c-adm-users"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-adm-users"><div class="ph"><div class="ph-l"><h2>Utilisateurs</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="exportBadges()">⬇ Exporter mes badges</button><button class="btn bg sm" onclick="openImportBadges()">⬆ Importer</button><button class="btn bp" onclick="openMoNewUser()">+ Utilisateur</button></div></div><div id="c-adm-users"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-adm-grps"><div class="ph"><div class="ph-l"><h2>Groupes</h2></div><button class="btn bp" onclick="openMoNewGrp()">+ Groupe</button></div><div id="c-adm-grps"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-adm-dem"><div class="ph"><div class="ph-l"><h2>Demandes</h2></div></div><div id="c-adm-dem"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-adm-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-adm-msgs"><div class="loading"><div class="ls"></div></div></div></div>
 
     <!-- USER -->
-    <div class="page" id="p-usr-badges"><div class="ph"><div class="ph-l"><h2>Mes badges</h2></div></div><div id="c-usr-badges"><div class="loading"><div class="ls"></div></div></div></div>
+    <div class="page" id="p-usr-badges"><div class="ph"><div class="ph-l"><h2>Mes badges</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="exportBadges()">⬇ Exporter</button><button class="btn bg sm" onclick="openImportBadges()">⬆ Importer</button></div></div><div id="c-usr-badges"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-usr-mct"><div class="ph"><div class="ph-l"><h2>Mes MCT</h2></div></div><div id="c-usr-mct"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-usr-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-usr-msgs"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-usr-dem"><div class="ph"><div class="ph-l"><h2>Mes demandes</h2></div></div><div id="c-usr-dem"><div class="loading"><div class="ls"></div></div></div></div>
@@ -501,6 +501,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   <h3 id="confirm-title">Confirmer</h3>
   <p class="mo-sub" id="confirm-msg"></p>
   <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-confirm')">Annuler</button><button class="btn bd" id="confirm-btn">Confirmer</button></div>
+</div></div>
+
+<div class="mo-ov hidden" id="mo-dispatch" onclick="closeMoOv(event,'mo-dispatch')"><div class="mo" onclick="event.stopPropagation()">
+  <h3>Dispatcher</h3>
+  <p class="mo-sub">Assigner un utilisateur ou un groupe à un admin</p>
+  <div class="fgi">
+    <label class="fl">Type de dispatch</label>
+    <select class="sel" id="dp-type" onchange="onDispatchTypeChange()">
+      <option value="user_to_admin">Utilisateur → Admin</option>
+      <option value="user_to_group">Utilisateur → Groupe</option>
+      <option value="group_to_admin">Groupe → Admin</option>
+    </select>
+  </div>
+  <div class="fgi" id="dp-user-wrap">
+    <label class="fl">Utilisateur</label>
+    <select class="sel" id="dp-user-sel"></select>
+  </div>
+  <div class="fgi hidden" id="dp-group-wrap">
+    <label class="fl">Groupe</label>
+    <select class="sel" id="dp-group-sel"></select>
+  </div>
+  <div class="fgi" id="dp-admin-wrap">
+    <label class="fl">Admin destinataire</label>
+    <select class="sel" id="dp-admin-sel"></select>
+  </div>
+  <div class="fgi hidden" id="dp-note-wrap">
+    <div class="info-box" id="dp-note"></div>
+  </div>
+  <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-dispatch')">Annuler</button><button class="btn bp" onclick="doDispatch()">Dispatcher</button></div>
 </div></div>
 
 <!-- Encode overlay -->

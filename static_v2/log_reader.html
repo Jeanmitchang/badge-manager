@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Badge Manager — Journal</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#080c12;--bg2:#0f1620;--bg3:#172030;--bg4:#1e2d42;
+  --border:#1e2d42;--border2:#2a3f5f;
+  --cyan:#00c8f0;--teal:#00b894;--amber:#f59e0b;
+  --red:#ef4444;--green:#10b981;--purple:#8b5cf6;
+  --text:#dce8f5;--text2:#7a9ab8;--text3:#3a5570;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--bg2)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* ── HEADER ── */
+.hdr{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;}
+.hdr-logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,rgba(0,200,240,.2),rgba(0,184,148,.1));border:1px solid rgba(0,200,240,.2);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.hdr-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:800;}
+.hdr-sub{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;}
+.hdr-r{margin-left:auto;display:flex;align-items:center;gap:9px;}
+
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 14px;border-radius:6px;border:none;font-size:11px;font-family:'DM Sans',sans-serif;cursor:pointer;transition:all .2s;font-weight:500;}
+.bp{background:var(--cyan);color:var(--bg);}.bp:hover{background:#00b0d8;}
+.bg{background:transparent;color:var(--text2);border:1px solid var(--border);}.bg:hover{border-color:var(--border2);color:var(--text);}
+.bt{background:transparent;color:var(--teal);border:1px solid rgba(0,184,148,.25);}.bt:hover{background:rgba(0,184,148,.07);}
+.bd{background:transparent;color:var(--red);border:1px solid rgba(239,68,68,.25);}
+
+/* ── DROP ZONE ── */
+.drop-zone{border:2px dashed var(--border2);border-radius:14px;padding:60px 30px;text-align:center;cursor:pointer;transition:all .2s;margin:32px auto;max-width:500px;}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--cyan);background:rgba(0,200,240,.04);}
+.drop-zone-icon{font-size:40px;margin-bottom:14px;}
+.drop-zone h2{font-family:'Syne',sans-serif;font-size:18px;margin-bottom:6px;}
+.drop-zone p{font-size:12px;color:var(--text2);}
+.drop-zone kbd{background:var(--bg3);border:1px solid var(--border2);border-radius:4px;padding:2px 7px;font-family:'DM Mono',monospace;font-size:10px;}
+
+/* ── STATS BAR ── */
+.stats{display:flex;gap:10px;flex-wrap:wrap;padding:16px 24px;background:var(--bg2);border-bottom:1px solid var(--border);}
+.stat{background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 14px;min-width:110px;}
+.stat-l{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.8px;}
+.stat-v{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;margin-top:2px;}
+.s1 .stat-v{color:var(--cyan);}.s2 .stat-v{color:var(--teal);}.s3 .stat-v{color:var(--amber);}.s4 .stat-v{color:var(--purple);}
+
+/* ── FILTERS ── */
+.filters{display:flex;gap:9px;flex-wrap:wrap;padding:12px 24px;background:var(--bg2);border-bottom:1px solid var(--border);align-items:center;}
+.inp{padding:7px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;transition:border-color .2s;}
+.inp:focus{border-color:#0099bb;}
+.inp::placeholder{color:var(--text3);}
+.sel{padding:7px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:7px;color:var(--text);font-size:12px;font-family:'DM Sans',sans-serif;outline:none;}
+.filters label{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.7px;}
+.filter-grp{display:flex;flex-direction:column;gap:4px;}
+.result-count{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-left:auto;padding:4px 10px;background:var(--bg3);border-radius:5px;}
+
+/* ── TABLE ── */
+.tbl-wrap{overflow:auto;padding:0 24px 24px;}
+table{width:100%;border-collapse:collapse;font-size:11px;margin-top:16px;}
+thead th{padding:9px 12px;text-align:left;font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;text-transform:uppercase;letter-spacing:.7px;border-bottom:1px solid var(--border);font-weight:400;position:sticky;top:0;background:var(--bg);cursor:pointer;user-select:none;white-space:nowrap;}
+thead th:hover{color:var(--text);}
+thead th.sorted-asc::after{content:' ↑'}
+thead th.sorted-desc::after{content:' ↓'}
+tbody td{padding:8px 12px;border-bottom:1px solid rgba(30,45,66,.4);color:var(--text2);vertical-align:top;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:rgba(255,255,255,.012);}
+.mono{font-family:'DM Mono',monospace;font-size:10px;}
+.ts{color:var(--text3);white-space:nowrap;}
+
+/* ── EVENT CHIPS ── */
+.ev{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:4px;font-size:9px;font-family:'DM Mono',monospace;font-weight:600;white-space:nowrap;}
+.ev-ok{background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2);}
+.ev-err{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2);}
+.ev-warn{background:rgba(245,158,11,.1);color:#f59e0b;border:1px solid rgba(245,158,11,.2);}
+.ev-info{background:rgba(0,200,240,.08);color:#00c8f0;border:1px solid rgba(0,200,240,.18);}
+.ev-purple{background:rgba(139,92,246,.1);color:#8b5cf6;border:1px solid rgba(139,92,246,.2);}
+.ev-gray{background:rgba(58,85,112,.15);color:var(--text3);border:1px solid var(--border);}
+
+/* ── ROLE CHIPS ── */
+.chip{display:inline-flex;align-items:center;padding:1px 7px;border-radius:20px;font-size:9px;font-weight:600;font-family:'DM Mono',monospace;}
+.r-sa{background:rgba(139,92,246,.12);color:#8b5cf6;border:1px solid rgba(139,92,246,.25);}
+.r-adm{background:rgba(0,200,240,.08);color:#00c8f0;border:1px solid rgba(0,200,240,.2);}
+.r-usr{background:rgba(16,185,129,.1);color:#10b981;border:1px solid rgba(16,185,129,.2);}
+
+/* ── DETAIL ── */
+.det{font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:3px;line-height:1.6;}
+.det span{color:var(--cyan);}
+.dev{font-size:12px;}
+
+/* ── EMPTY ── */
+.empty{text-align:center;padding:60px;color:var(--text3);font-family:'DM Mono',monospace;font-size:12px;}
+
+/* ── PAGINATION ── */
+.pager{display:flex;align-items:center;gap:8px;padding:14px 24px;border-top:1px solid var(--border);}
+.pager-info{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-right:auto;}
+
+/* ── TOAST ── */
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);padding:9px 18px;border-radius:9px;font-size:11px;font-family:'DM Mono',monospace;z-index:400;background:rgba(0,200,240,.12);border:1px solid rgba(0,200,240,.25);color:var(--teal);}
+
+/* ── RESPONSIVE ── */
+@media(max-width:700px){
+  .hdr{padding:10px 14px;}
+  .stats,.filters,.tbl-wrap{padding-left:12px;padding-right:12px;}
+  .stat{min-width:80px;}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-logo">🏷️</div>
+  <div>
+    <div class="hdr-title">Journal d'activité</div>
+    <div class="hdr-sub" id="file-info">Aucun fichier chargé</div>
+  </div>
+  <div class="hdr-r" id="hdr-actions" style="display:none;">
+    <button class="btn bg" onclick="downloadFiltered()">⬇ Exporter filtré</button>
+    <button class="btn bd" onclick="resetAll()">✕ Fermer</button>
+  </div>
+  <div class="hdr-r" id="hdr-load">
+    <button class="btn bp" onclick="triggerPicker()">📂 Charger JSON</button>
+  </div>
+</div>
+
+<!-- DROP ZONE -->
+<div id="drop-area">
+  <div class="drop-zone" id="drop-zone" onclick="triggerPicker()">
+    <div class="drop-zone-icon">📋</div>
+    <h2>Glisser un fichier JSON ici</h2>
+    <p>ou cliquez pour choisir un fichier</p>
+    <br>
+    <p style="font-size:10px;color:var(--text3);">
+      Exportez depuis l'interface superadmin → Journal → <kbd>⬇ JSON</kbd><br>
+      ou via terminal : <kbd>python3 log_tail.py</kbd>
+    </p>
+  </div>
+  <input type="file" id="file-picker" accept=".json" style="display:none;" onchange="loadFile(this.files[0])">
+</div>
+
+<!-- VIEWER (caché jusqu'au chargement) -->
+<div id="viewer" style="display:none;">
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat s1"><div class="stat-l">Total événements</div><div class="stat-v" id="st-total">0</div></div>
+    <div class="stat s2"><div class="stat-l">Utilisateurs uniques</div><div class="stat-v" id="st-users">0</div></div>
+    <div class="stat s3"><div class="stat-l">Connexions OK</div><div class="stat-v" id="st-logins">0</div></div>
+    <div class="stat s4"><div class="stat-l">MCT générés</div><div class="stat-v" id="st-mct">0</div></div>
+    <div class="stat" style="flex:1;min-width:200px;">
+      <div class="stat-l">Période couverte</div>
+      <div style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text);margin-top:4px;" id="st-period">—</div>
+    </div>
+  </div>
+
+  <!-- FILTERS -->
+  <div class="filters">
+    <div class="filter-grp">
+      <label>Recherche</label>
+      <input class="inp" id="f-search" placeholder="événement, user, IP, détail…" oninput="applyFilters()" style="width:200px;">
+    </div>
+    <div class="filter-grp">
+      <label>Événement</label>
+      <select class="sel" id="f-event" onchange="applyFilters()"></select>
+    </div>
+    <div class="filter-grp">
+      <label>Rôle</label>
+      <select class="sel" id="f-role" onchange="applyFilters()">
+        <option value="">Tous</option>
+        <option value="superadmin">Superadmin</option>
+        <option value="admin">Admin</option>
+        <option value="user">Utilisateur</option>
+      </select>
+    </div>
+    <div class="filter-grp">
+      <label>Appareil</label>
+      <select class="sel" id="f-device" onchange="applyFilters()">
+        <option value="">Tous</option>
+        <option value="desktop">🖥 Desktop</option>
+        <option value="mobile">📱 Mobile</option>
+        <option value="tablet">📟 Tablette</option>
+      </select>
+    </div>
+    <div class="filter-grp">
+      <label>Depuis</label>
+      <input type="date" class="inp" id="f-from" onchange="applyFilters()">
+    </div>
+    <div class="filter-grp">
+      <label>Jusqu'au</label>
+      <input type="date" class="inp" id="f-to" onchange="applyFilters()">
+    </div>
+    <button class="btn bg" onclick="clearFilters()" style="align-self:flex-end;">✕ Réinitialiser</button>
+    <div class="result-count" id="result-count">—</div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th onclick="sortBy('created_at')">Horodatage</th>
+          <th onclick="sortBy('event')">Événement</th>
+          <th onclick="sortBy('user_login')">Utilisateur</th>
+          <th onclick="sortBy('role')">Rôle</th>
+          <th onclick="sortBy('ip')">IP</th>
+          <th>Appareil</th>
+          <th>Détail</th>
+        </tr>
+      </thead>
+      <tbody id="log-body"></tbody>
+    </table>
+    <div class="empty hidden" id="log-empty">Aucun résultat pour ces filtres.</div>
+  </div>
+
+  <!-- PAGINATION -->
+  <div class="pager">
+    <span class="pager-info" id="pager-info">—</span>
+    <button class="btn bg" id="btn-prev" onclick="prevPage()" disabled>← Précédent</button>
+    <button class="btn bg" id="btn-next" onclick="nextPage()">Suivant →</button>
+  </div>
+
+</div>
+
+<script>
+// ─── STATE ────────────────────────────────────────────────
+let ALL_LOGS = [];
+let FILTERED = [];
+let PAGE = 0;
+const PAGE_SIZE = 100;
+let SORT_KEY = 'created_at';
+let SORT_ASC = false;
+
+// ─── EVENT CLASSIFICATION ──────────────────────────────────
+const EV_CLASSES = {
+  connexion_ok: 'ev-ok', user_created: 'ev-info', badge_created: 'ev-info',
+  mct_generated: 'ev-info', group_created: 'ev-info', stock_badge: 'ev-info',
+  dispatch: 'ev-purple', restored: 'ev-ok',
+  connexion_echec: 'ev-err', deleted_final: 'ev-err', system_alert: 'ev-err',
+  deleted_soft: 'ev-warn', blocked: 'ev-warn', deleted: 'ev-warn',
+  watchdog: 'ev-gray', cleanup: 'ev-gray',
+  password: 'ev-warn', demande: 'ev-warn',
+};
+function evClass(event) {
+  for (const [k, cls] of Object.entries(EV_CLASSES))
+    if (event.includes(k)) return cls;
+  return 'ev-gray';
+}
+function evIcon(event) {
+  if (event.includes('connexion_ok'))    return '✓';
+  if (event.includes('connexion_echec')) return '✗';
+  if (event.includes('mct'))             return '⚡';
+  if (event.includes('badge'))           return '🏷';
+  if (event.includes('dispatch'))        return '↗';
+  if (event.includes('deleted'))         return '🗑';
+  if (event.includes('blocked'))         return '⛔';
+  if (event.includes('password'))        return '🔑';
+  if (event.includes('group'))           return '◉';
+  if (event.includes('watchdog'))        return '·';
+  if (event.includes('alert'))           return '⚠';
+  return '·';
+}
+function roleChip(role) {
+  if (!role) return '';
+  const cls = {superadmin:'r-sa', admin:'r-adm', user:'r-usr'}[role] || '';
+  return `<span class="chip ${cls}">${role}</span>`;
+}
+function devIcon(device) {
+  return {mobile:'📱', tablet:'📟', desktop:'🖥', '':''}[device||''] || '';
+}
+function fmtTs(iso) {
+  if (!iso) return '—';
+  return iso.replace('T',' ').slice(0,19);
+}
+function fmtDetail(det) {
+  if (!det || typeof det !== 'object' || !Object.keys(det).length) return '';
+  return Object.entries(det)
+    .filter(([,v]) => v !== null && v !== '' && v !== undefined)
+    .map(([k,v]) => `<span>${k}</span> ${typeof v === 'object' ? JSON.stringify(v) : v}`)
+    .join(' &nbsp;·&nbsp; ');
+}
+
+// ─── LOAD FILE ─────────────────────────────────────────────
+function triggerPicker() {
+  document.getElementById('file-picker').click();
+}
+function loadFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      const logs = Array.isArray(data) ? data : (data.logs || []);
+      initViewer(logs, file.name, data.exported_at, data.exported_by);
+    } catch(err) {
+      alert('Fichier JSON invalide : ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ─── DRAG & DROP ───────────────────────────────────────────
+const dropZone = document.getElementById('drop-zone');
+['dragenter','dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.add('drag-over');
+}));
+['dragleave','drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+}));
+dropZone.addEventListener('drop', e => {
+  const file = e.dataTransfer.files[0];
+  if (file && file.name.endsWith('.json')) loadFile(file);
+});
+
+// ─── INIT VIEWER ───────────────────────────────────────────
+function initViewer(logs, filename, exportedAt, exportedBy) {
+  ALL_LOGS = logs;
+
+  // Stats
+  const users = new Set(logs.map(l => l.user_login).filter(Boolean));
+  const logins = logs.filter(l => l.event === 'connexion_ok').length;
+  const mcts = logs.filter(l => l.event === 'mct_generated').length;
+  const dates = logs.map(l => l.created_at).filter(Boolean).sort();
+
+  document.getElementById('st-total').textContent  = logs.length.toLocaleString('fr-FR');
+  document.getElementById('st-users').textContent  = users.size;
+  document.getElementById('st-logins').textContent = logins;
+  document.getElementById('st-mct').textContent    = mcts;
+  document.getElementById('st-period').textContent = dates.length
+    ? `${fmtTs(dates[0])} → ${fmtTs(dates[dates.length-1])}`
+    : '—';
+
+  // Populate event filter
+  const events = [...new Set(logs.map(l => l.event).filter(Boolean))].sort();
+  const evSel = document.getElementById('f-event');
+  evSel.innerHTML = '<option value="">Tous les événements</option>' +
+    events.map(e => `<option value="${e}">${e}</option>`).join('');
+
+  // File info
+  const info = exportedAt
+    ? `${filename} — exporté par ${exportedBy || '?'} le ${fmtTs(exportedAt)}`
+    : filename;
+  document.getElementById('file-info').textContent = info;
+
+  // Show/hide
+  document.getElementById('drop-area').style.display = 'none';
+  document.getElementById('viewer').style.display = 'block';
+  document.getElementById('hdr-load').style.display = 'none';
+  document.getElementById('hdr-actions').style.display = 'flex';
+
+  applyFilters();
+}
+
+// ─── FILTERS ───────────────────────────────────────────────
+function applyFilters() {
+  const search = document.getElementById('f-search').value.toLowerCase();
+  const event  = document.getElementById('f-event').value;
+  const role   = document.getElementById('f-role').value;
+  const device = document.getElementById('f-device').value;
+  const from   = document.getElementById('f-from').value;
+  const to     = document.getElementById('f-to').value;
+
+  FILTERED = ALL_LOGS.filter(l => {
+    if (event  && l.event  !== event)  return false;
+    if (role   && l.role   !== role)   return false;
+    if (device && (l.device||'') !== device) return false;
+    if (from   && (l.created_at||'') < from) return false;
+    if (to     && (l.created_at||'') > to + 'T23:59:59') return false;
+    if (search) {
+      const hay = [l.event, l.user_login, l.ip, l.role,
+        typeof l.detail === 'object' ? JSON.stringify(l.detail) : (l.detail||'')
+      ].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  // Sort
+  FILTERED.sort((a, b) => {
+    const va = a[SORT_KEY] || '', vb = b[SORT_KEY] || '';
+    return SORT_ASC ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+
+  PAGE = 0;
+  document.getElementById('result-count').textContent =
+    `${FILTERED.length.toLocaleString('fr-FR')} résultat(s)`;
+  renderPage();
+}
+
+function clearFilters() {
+  ['f-search','f-from','f-to'].forEach(id => document.getElementById(id).value = '');
+  ['f-event','f-role','f-device'].forEach(id => document.getElementById(id).value = '');
+  applyFilters();
+}
+
+// ─── SORT ──────────────────────────────────────────────────
+function sortBy(key) {
+  if (SORT_KEY === key) { SORT_ASC = !SORT_ASC; }
+  else { SORT_KEY = key; SORT_ASC = false; }
+  document.querySelectorAll('thead th').forEach(th => {
+    th.classList.remove('sorted-asc','sorted-desc');
+  });
+  const ths = document.querySelectorAll('thead th');
+  const keys = ['created_at','event','user_login','role','ip',null,null];
+  const idx = keys.indexOf(key);
+  if (idx >= 0 && ths[idx]) {
+    ths[idx].classList.add(SORT_ASC ? 'sorted-asc' : 'sorted-desc');
+  }
+  applyFilters();
+}
+
+// ─── RENDER ────────────────────────────────────────────────
+function renderPage() {
+  const body = document.getElementById('log-body');
+  const empty = document.getElementById('log-empty');
+  const total = FILTERED.length;
+  const start = PAGE * PAGE_SIZE;
+  const slice = FILTERED.slice(start, start + PAGE_SIZE);
+
+  if (!slice.length) {
+    body.innerHTML = '';
+    empty.classList.remove('hidden');
+  } else {
+    empty.classList.add('hidden');
+    body.innerHTML = slice.map(l => {
+      const det = typeof l.detail === 'object' ? l.detail : {};
+      return `<tr>
+        <td class="ts mono">${fmtTs(l.created_at)}</td>
+        <td><span class="ev ${evClass(l.event||'')}">${evIcon(l.event||'')} ${l.event||'—'}</span></td>
+        <td class="mono">${l.user_login||'—'}</td>
+        <td>${roleChip(l.role)}</td>
+        <td class="mono" style="color:var(--text3);font-size:10px;">${l.ip&&l.ip!=='unknown'?l.ip:'—'}</td>
+        <td class="dev">${devIcon(l.device)}</td>
+        <td><div class="det">${fmtDetail(det)}</div></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Pager
+  const pages = Math.ceil(total / PAGE_SIZE);
+  document.getElementById('pager-info').textContent =
+    `Page ${PAGE+1} / ${pages||1}  —  ${start+1}–${Math.min(start+PAGE_SIZE,total)} sur ${total}`;
+  document.getElementById('btn-prev').disabled = PAGE === 0;
+  document.getElementById('btn-next').disabled = PAGE >= pages - 1;
+}
+
+function prevPage() { if (PAGE > 0) { PAGE--; renderPage(); window.scrollTo(0,200); } }
+function nextPage() { PAGE++; renderPage(); window.scrollTo(0,200); }
+
+// ─── EXPORT FILTERED ───────────────────────────────────────
+function downloadFiltered() {
+  const export_data = {
+    exported_at: new Date().toISOString(),
+    source: 'log_reader — export filtré',
+    total: FILTERED.length,
+    logs: FILTERED,
+  };
+  const blob = new Blob([JSON.stringify(export_data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `logs_filtré_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ─── RESET ─────────────────────────────────────────────────
+function resetAll() {
+  ALL_LOGS = []; FILTERED = []; PAGE = 0;
+  document.getElementById('viewer').style.display = 'none';
+  document.getElementById('drop-area').style.display = 'block';
+  document.getElementById('hdr-actions').style.display = 'none';
+  document.getElementById('hdr-load').style.display = 'flex';
+  document.getElementById('file-info').textContent = 'Aucun fichier chargé';
+  document.getElementById('file-picker').value = '';
+}
+</script>
+</body>
+</html>

@@ -44,6 +44,28 @@ def require_role(*roles):
     return dep
 def get_ip(r:Request):return r.client.host if r.client else "unknown"
 
+def get_ua(r:Request) -> tuple[str,str]:
+    """Retourne (user_agent, device)."""
+    ua = r.headers.get("user-agent","")
+    # Détection simple du type de périphérique
+    ua_lower = ua.lower()
+    if any(x in ua_lower for x in ["mobile","android","iphone","ipad"]):
+        device = "mobile"
+    elif any(x in ua_lower for x in ["tablet"]):
+        device = "tablet"
+    else:
+        device = "desktop"
+    return ua[:200], device
+
+def migrate_db():
+    """Ajoute les colonnes manquantes si upgrade depuis ancienne version."""
+    with D.db() as conn:
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(activity_log)").fetchall()]
+        if "user_agent" not in cols:
+            conn.execute("ALTER TABLE activity_log ADD COLUMN user_agent TEXT")
+        if "device" not in cols:
+            conn.execute("ALTER TABLE activity_log ADD COLUMN device TEXT")
+
 def validate_uid(uid:str):
     uid=uid.strip().upper()
     if len(uid)!=8:return False,"UID doit faire 8 caractères hexadécimaux"
@@ -84,6 +106,11 @@ class AttributeStockReq(BaseModel):badge_id:str;attributed_to:str
 class RequestReq(BaseModel):type:str=Field(...,pattern=r'^(badge_quota|mct_rallonge|group_change|delete_user)$');motif:str|None=Field(default=None,max_length=280);group_to:str|None=None;target_id:str|None=None
 class SendMsgReq(BaseModel):to_id:str;content:str=Field(...,min_length=1,max_length=280)
 class ConfigUpdateReq(BaseModel):badge_quota_default:int|None=None;mct_daily_limit:int|None=None;jwt_ttl_hours_default:int|None=None;vigik_duration_hours:int|None=None;disk_alert_threshold_pct:int|None=None
+class DispatchReq(BaseModel):
+    type:str=Field(...,pattern=r'^(group_to_admin|user_to_group|user_to_admin)$')
+    group_id:str|None=None
+    admin_id:str|None=None
+    user_id:str|None=None
 
 app=FastAPI(title="Badge Manager v2",docs_url=None,redoc_url=None)
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
@@ -91,6 +118,7 @@ app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,all
 @app.on_event("startup")
 async def startup():
     D.init_db();D.init_default_config()
+    migrate_db()
     asyncio.create_task(_cleanup_loop());asyncio.create_task(_watchdog_loop())
 
 @app.get("/api/me")
@@ -100,14 +128,14 @@ async def me(p=Depends(require_auth)):
 
 @app.post("/api/login")
 async def login(req:LoginReq,request:Request):
-    u=D.get_user_by_login(req.login);ip=get_ip(request)
+    u=D.get_user_by_login(req.login);ip=get_ip(request);ua,dev=get_ua(request)
     if not u or not D.check_pwd(req.password,u["pwd_hash"]):
-        D.log_event("connexion_echec",user_login=req.login,ip=ip)
+        D.log_event("connexion_echec",user_login=req.login,ip=ip,user_agent=ua,device=dev)
         raise HTTPException(401,"Identifiant ou mot de passe incorrect")
     if not u["is_active"]:raise HTTPException(403,"ACCOUNT_BLOCKED")
     ttl=u["jwt_ttl_hours"]
     token=jwt_sign({"sub":u["id"],"login":u["login"],"role":u["role"],"iat":int(time.time()),"exp":int(time.time())+ttl*3600})
-    D.log_event("connexion_ok",user_id=u["id"],user_login=u["login"],role=u["role"],ip=ip)
+    D.log_event("connexion_ok",user_id=u["id"],user_login=u["login"],role=u["role"],ip=ip,user_agent=ua,device=dev)
     return{"token":token,"role":u["role"],"login":u["login"],"must_change_pwd":bool(u["must_change_pwd"]),"ttl_hours":ttl}
 
 @app.post("/api/change-password")
@@ -543,7 +571,192 @@ async def dashboard(p=Depends(require_auth)):
         return{"badge_count":len(bs),"badge_quota":u["badge_quota"],"mct_used":D.count_mct_last_24h(p["sub"]),"mct_limit":lim}
 
 @app.get("/api/logs")
-async def get_logs(limit:int=100,p=Depends(require_role("superadmin"))):return D.get_logs(limit=min(limit,500))
+async def get_logs(limit:int=100,event:str=None,p=Depends(require_role("superadmin"))):
+    return D.get_logs(limit=min(limit,1000),event_filter=event)
+
+@app.get("/api/logs/export")
+async def export_logs(p=Depends(require_role("superadmin")),format:str="json"):
+    """Export du journal — format=json (défaut) ou format=csv."""
+    logs = D.get_logs(limit=100000)
+    from fastapi.responses import StreamingResponse
+    if format == "csv":
+        import csv, io
+        output = io.StringIO()
+        if logs:
+            writer = csv.DictWriter(output, fieldnames=logs[0].keys())
+            writer.writeheader()
+            writer.writerows(logs)
+        content = output.getvalue().encode("utf-8-sig")
+        return StreamingResponse(iter([content]), media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=logs_{D.now()[:10]}.csv"})
+    # JSON (défaut)
+    for log in logs:
+        try: log["detail"] = json.loads(log.get("detail") or "{}")
+        except: log["detail"] = {}
+    export = {
+        "exported_at": D.now(), "exported_by": p["login"],
+        "version": "2", "total": len(logs), "logs": logs,
+    }
+    content = json.dumps(export, ensure_ascii=False, indent=2).encode("utf-8")
+    return StreamingResponse(iter([content]), media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=logs_{D.now()[:10]}.json"})
+
+# ─── Import / Export badges ───────────────────────────────────────────────────
+
+@app.get("/api/badges/export")
+async def export_badges(p=Depends(require_auth)):
+    """Export des badges en JSON."""
+    import json as _json
+    role=p["role"]; uid=p["sub"]; login=p["login"]
+    if role=="superadmin":
+        badges=[]
+        for u in D.get_all_users():
+            for b in D.get_badges_by_owner(u["id"]):
+                badges.append({**b,"owner_login":u["login"]})
+        for b in D.get_stock_badges():
+            badges.append({**b,"owner_login":"superadmin_stock"})
+    else:
+        badges=D.get_badges_by_owner(uid)
+        badges+=[b for b in D.get_stock_badges() if b.get("attributed_to")==uid]
+    export_data={
+        "exported_by":login,"exported_at":D.now(),"role":role,
+        "badges":[{"name":b["name"],"uid":b["uid"],"icon":b.get("icon","🔑")} for b in badges]
+    }
+    content=_json.dumps(export_data,ensure_ascii=False,indent=2).encode("utf-8")
+    from fastapi.responses import StreamingResponse
+    return StreamingResponse(iter([content]),media_type="application/json",
+        headers={"Content-Disposition":f"attachment; filename=badges_{login}_{D.now()[:10]}.json"})
+
+class BadgeImportReq(BaseModel):
+    badges: list  # liste de {name, uid, icon}
+    overwrite: bool = False  # si True, skip les doublons silencieusement
+
+@app.post("/api/badges/import")
+async def import_badges(req: BadgeImportReq, p=Depends(require_auth)):
+    """Import de badges depuis un fichier JSON exporté."""
+    user_id = p["sub"]
+    user = D.get_user_by_id(user_id)
+    imported = 0; skipped = 0; errors = []
+
+    for item in req.badges:
+        name = str(item.get("name","")).strip()[:50]
+        uid  = str(item.get("uid","")).strip().upper()
+        icon = str(item.get("icon","🔑"))
+        if not name or len(uid) != 8:
+            skipped += 1; continue
+        # Validation UID
+        ok, msg = validate_uid(uid)
+        if not ok:
+            errors.append(f"{uid}: {msg}"); skipped += 1; continue
+        # Vérif quota
+        current = D.count_user_badges(user_id)
+        if current >= user["badge_quota"]:
+            errors.append(f"Quota atteint ({user['badge_quota']}) — import interrompu")
+            break
+        # Vérif doublon
+        if D.uid_exists_for_user(user_id, uid):
+            if req.overwrite:
+                skipped += 1; continue
+            else:
+                errors.append(f"{uid}: déjà existant"); skipped += 1; continue
+        D.create_badge(name=name, uid=uid, icon=icon, owner_id=user_id)
+        D.log_event("badge_imported", user_id=user_id, user_login=p["login"],
+                    detail={"name": name, "uid": uid})
+        imported += 1
+
+    return {"imported": imported, "skipped": skipped, "errors": errors}
+
+@app.post("/api/superadmin/dispatch")
+async def superadmin_dispatch(req:DispatchReq,p=Depends(require_role("superadmin"))):
+    sa_id=p["sub"];sa_login=p["login"]
+
+    if req.type=="group_to_admin":
+        if not req.group_id or not req.admin_id:raise HTTPException(400,"group_id et admin_id requis")
+        g=D.get_group(req.group_id)
+        if not g:raise HTTPException(404,"Groupe introuvable")
+        new_adm=D.get_user_by_id(req.admin_id)
+        if not new_adm or new_adm["role"]!="admin":raise HTTPException(404,"Admin introuvable")
+        old_adm=D.get_user_by_id(g["admin_id"]) if g["admin_id"]!=req.admin_id else None
+        ts=D.now()
+        with D.db() as conn:
+            users_in_group=[dict(r) for r in conn.execute(
+                "SELECT * FROM users WHERE group_id=? AND is_deleted=0",(req.group_id,)).fetchall()]
+            conn.execute("UPDATE groups SET admin_id=? WHERE id=?",(req.admin_id,req.group_id))
+            conn.execute("UPDATE users SET admin_id=?,updated_at=? WHERE group_id=? AND is_deleted=0",
+                (req.admin_id,ts,req.group_id))
+        nb=len(users_in_group)
+        D.push_notif(new_adm["id"],"dispatch",f"Groupe dispatché : {g['name']}",
+            body=f"{nb} utilisateur(s) transféré(s) par le superadmin")
+        D.send_message(sa_id,new_adm["id"],
+            f"Le groupe « {g['name']} » ({nb} utilisateur(s)) vous a été assigné par le superadmin.")
+        if old_adm:
+            D.push_notif(old_adm["id"],"dispatch",f"Groupe retiré : {g['name']}",
+                body=f"Transféré à {new_adm['login']} par {sa_login}")
+            D.send_message(sa_id,old_adm["id"],
+                f"Le groupe « {g['name']} » a été transféré à l'admin « {new_adm['login']} » par le superadmin.")
+        for u in users_in_group:
+            D.push_notif(u["id"],"dispatch","Votre groupe a un nouvel administrateur",
+                body=f"Groupe {g['name']} — nouvel admin : {new_adm['login']}")
+        D.log_event("dispatch_group_to_admin",user_id=sa_id,user_login=sa_login,
+            group_id=req.group_id,admin_id=req.admin_id,
+            detail={"group":g["name"],"new_admin":new_adm["login"],"users_moved":nb})
+        return{"ok":True,"group":g["name"],"admin":new_adm["login"],"users_moved":nb}
+
+    elif req.type=="user_to_group":
+        if not req.user_id or not req.group_id:raise HTTPException(400,"user_id et group_id requis")
+        u=D.get_user_by_id(req.user_id)
+        if not u or u["role"]!="user" or u["is_deleted"]:raise HTTPException(404,"Utilisateur introuvable")
+        g=D.get_group(req.group_id)
+        if not g:raise HTTPException(404,"Groupe introuvable")
+        new_adm=D.get_user_by_id(g["admin_id"])
+        old_adm=D.get_user_by_id(u["admin_id"]) if u["admin_id"] and u["admin_id"]!=g["admin_id"] else None
+        D.update_user(req.user_id,group_id=req.group_id,admin_id=g["admin_id"])
+        adm_name=new_adm["login"] if new_adm else "?"
+        if new_adm:
+            D.push_notif(new_adm["id"],"dispatch",f"Nouvel utilisateur : {u['login']}",
+                body=f"Placé dans {g['name']} par le superadmin")
+            D.send_message(sa_id,new_adm["id"],
+                f"L'utilisateur « {u['login']} » a été placé dans votre groupe « {g['name']} » par le superadmin.")
+        if old_adm:
+            D.push_notif(old_adm["id"],"dispatch",f"Utilisateur transféré : {u['login']}",
+                body=f"Vers {g['name']} (admin {adm_name}) par {sa_login}")
+            D.send_message(sa_id,old_adm["id"],
+                f"L'utilisateur « {u['login']} » a été transféré au groupe « {g['name']} » par le superadmin.")
+        D.push_notif(u["id"],"dispatch",f"Vous avez été placé dans le groupe {g['name']}",
+            body=f"Admin : {adm_name}")
+        D.log_event("dispatch_user_to_group",user_id=sa_id,user_login=sa_login,
+            group_id=req.group_id,admin_id=g["admin_id"],detail={"user":u["login"],"group":g["name"]})
+        return{"ok":True,"user":u["login"],"group":g["name"]}
+
+    else:  # user_to_admin
+        if not req.user_id or not req.admin_id:raise HTTPException(400,"user_id et admin_id requis")
+        u=D.get_user_by_id(req.user_id)
+        if not u or u["role"]!="user" or u["is_deleted"]:raise HTTPException(404,"Utilisateur introuvable")
+        new_adm=D.get_user_by_id(req.admin_id)
+        if not new_adm or new_adm["role"]!="admin":raise HTTPException(404,"Admin introuvable")
+        old_adm=D.get_user_by_id(u["admin_id"]) if u["admin_id"] and u["admin_id"]!=req.admin_id else None
+        updates={"admin_id":req.admin_id}
+        old_grp=None
+        if u["group_id"]:
+            g=D.get_group(u["group_id"])
+            if g and g["admin_id"]!=req.admin_id:updates["group_id"]=None;old_grp=g
+        D.update_user(req.user_id,**updates)
+        grp_note=f" (retiré du groupe « {old_grp['name']} »)" if old_grp else ""
+        D.push_notif(new_adm["id"],"dispatch",f"Nouvel utilisateur : {u['login']}",
+            body=f"Assigné par le superadmin{grp_note}")
+        D.send_message(sa_id,new_adm["id"],
+            f"L'utilisateur « {u['login']} » vous a été assigné par le superadmin." +
+            (f" Il a été retiré du groupe « {old_grp['name']} »." if old_grp else ""))
+        if old_adm:
+            D.push_notif(old_adm["id"],"dispatch",f"Utilisateur transféré : {u['login']}",
+                body=f"Vers admin {new_adm['login']} par {sa_login}")
+            D.send_message(sa_id,old_adm["id"],
+                f"L'utilisateur « {u['login']} » a été transféré à l'admin « {new_adm['login']} » par le superadmin.")
+        D.push_notif(u["id"],"dispatch","Votre compte a été transféré",
+            body=f"Nouvel admin : {new_adm['login']}")
+        D.log_event("dispatch_user_to_admin",user_id=sa_id,user_login=sa_login,
+            admin_id=req.admin_id,detail={"user":u["login"],"new_admin":new_adm["login"]})
+        return{"ok":True,"user":u["login"],"admin":new_adm["login"]}
 
 @app.get("/api/config")
 async def get_cfg(p=Depends(require_role("superadmin"))):
