@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192">
+  <rect width="192" height="192" rx="40" fill="#080c12"/>
+  <!-- Badge card body -->
+  <rect x="30" y="44" width="132" height="108" rx="16" fill="#0f1620" stroke="#1e2d42" stroke-width="2"/>
+  <!-- Clip hole top -->
+  <rect x="76" y="28" width="40" height="30" rx="8" fill="#080c12" stroke="#1e2d42" stroke-width="2"/>
+  <circle cx="96" cy="43" r="6" fill="#080c12" stroke="#2a3f5f" stroke-width="1.5"/>
+  <!-- Badge content lines -->
+  <rect x="46" y="78" width="100" height="10" rx="5" fill="#00c8f0" opacity="0.85"/>
+  <rect x="46" y="99" width="72" height="7" rx="3.5" fill="#00c8f0" opacity="0.45"/>
+  <rect x="46" y="116" width="50" height="7" rx="3.5" fill="#00c8f0" opacity="0.22"/>
+  <!-- Cyan accent bottom strip -->
+  <rect x="30" y="134" width="132" height="18" rx="0 0 16 16" fill="#00c8f0" opacity="0.12"/>
+</svg>

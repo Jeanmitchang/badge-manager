@@ -356,6 +356,8 @@ async def update_badge(bid:str,req:UpdateBadgeReq,p=Depends(require_auth)):
     b=D.get_badge(bid)
     if not b:raise HTTPException(404)
     if p["role"]!="superadmin" and b["owner_id"]!=p["sub"]:raise HTTPException(403)
+    if b.get("is_stock") and b.get("stock_status")=="attributed" and (req.name is not None or req.uid is not None):
+        raise HTTPException(403,"Badge attribué — nom et UID non modifiables")
     ups={}
     if req.name is not None:ups["name"]=req.name
     if req.icon is not None:ups["icon"]=req.icon

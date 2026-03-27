@@ -1,0 +1,20 @@
+{
+  "name": "Badge Manager",
+  "short_name": "Badges",
+  "description": "Gestion de badges VIGIK — accès contrôle",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080c12",
+  "theme_color": "#080c12",
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities"],
+  "lang": "fr"
+}

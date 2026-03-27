@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#080c12">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon.svg">
 <title>Badge Manager</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -30,7 +34,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .c-attrib{background:rgba(139,92,246,.1);color:var(--purple);border:1px solid rgba(139,92,246,.2);}
 
 /* ── LOGIN ── */
-#scr-login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 15% 50%,rgba(0,200,240,.05) 0%,transparent 55%),var(--bg);}
+#scr-login{position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at 15% 50%,rgba(0,200,240,.05) 0%,transparent 55%),var(--bg);}
 .lw{width:min(340px,100%);padding:0 16px;}
 .lh{text-align:center;margin-bottom:36px;}
 .lh-mark{width:60px;height:60px;margin:0 auto 18px;border-radius:16px;background:linear-gradient(135deg,rgba(0,200,240,.15),rgba(0,184,148,.1));border:1px solid rgba(0,200,240,.2);display:flex;align-items:center;justify-content:center;font-size:26px;}
@@ -45,6 +49,27 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .btn-login{width:100%;padding:11px;background:var(--cyan);color:var(--bg);border:none;border-radius:8px;font-size:14px;font-weight:700;font-family:'Syne',sans-serif;cursor:pointer;margin-top:6px;transition:all .2s;}
 .btn-login:hover{background:#00b0d8;}
 .lerr{font-size:11px;color:var(--red);font-family:'DM Mono',monospace;margin-top:10px;text-align:center;min-height:16px;}
+/* ── PARAMÈTRES LOGIN ── */
+.l-cfg-btn{position:absolute;top:14px;right:16px;background:none;border:1px solid var(--border);border-radius:8px;color:var(--text3);font-size:15px;line-height:1;padding:6px 9px;cursor:pointer;transition:all .2s;}
+.l-cfg-btn:hover,.l-cfg-btn.active{border-color:var(--border2);color:var(--cyan);}
+.l-cfg-panel{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.5);margin-top:12px;animation:fi .2s ease;}
+.l-cfg-panel h3{font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:16px;}
+.cfg-hint{font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:5px;}
+.cfg-hint.warn{color:var(--amber);}
+.cfg-host-cur{font-size:10px;color:var(--cyan);font-family:'DM Mono',monospace;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.75;}
+.cfg-dl-row{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;}
+.cfg-dl-name{flex:1;font-size:11px;color:var(--text2);font-family:'DM Mono',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.cfg-dl-btn{flex-shrink:0;padding:5px 10px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--text);font-size:11px;font-weight:600;cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif;}
+.cfg-dl-btn:hover{border-color:var(--cyan);color:var(--cyan);}
+.cfg-dl-btn:disabled{opacity:.4;cursor:not-allowed;}
+.cfg-dl-clear{display:block;margin-top:6px;padding:3px 0;background:none;border:none;color:var(--text3);font-size:10px;font-family:'DM Mono',monospace;cursor:pointer;text-align:left;}
+.cfg-dl-clear:hover{color:var(--amber);}
+.cfg-acts{display:flex;gap:8px;margin-top:18px;}
+.cfg-acts button{flex:1;padding:9px;border-radius:7px;font-size:12px;font-weight:600;font-family:'Syne',sans-serif;cursor:pointer;transition:all .2s;}
+.cfg-save{background:var(--cyan);color:var(--bg);border:none;}
+.cfg-save:hover{background:#00b0d8;}
+.cfg-cancel{background:transparent;border:1px solid var(--border);color:var(--text2);}
+.cfg-cancel:hover{border-color:var(--border2);color:var(--text);}
 
 /* ── APP LAYOUT ── */
 #scr-app{display:block;min-height:100vh;}
@@ -278,12 +303,110 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
   .mo { padding: 16px 14px; }
   .ph { gap: 8px; }
 }
+
+/* ══ PWA / MOBILE USER ════════════════════════════════════ */
+
+/* ── Modales bottom-sheet sur mobile ── */
+@media (max-width: 540px) {
+  .mo-ov { padding: 0; align-items: flex-end; }
+  .mo { border-radius: 18px 18px 0 0; max-width: 100%; width: 100%; max-height: 92svh; }
+}
+
+/* ── Touch targets ── */
+@media (max-width: 540px) {
+  /* font-size 16px évite le zoom auto iOS sur les inputs */
+  .inp, .sel { min-height: 44px; font-size: 16px !important; }
+  /* boutons principaux (pas xs/sm) */
+  .btn:not(.xs):not(.sm) { min-height: 44px; }
+}
+
+/* ── Touch :active (remplace :hover sur écran tactile) ── */
+@media (hover: none) {
+  .bgc:hover  { border-color: var(--border); transform: none; }
+  .bgc:active { border-color: #0099bb; transform: translateY(-2px); }
+  .conv-item:hover  { background: transparent; }
+  .conv-item:active { background: var(--bg3); }
+  .ni:hover  { background: transparent; color: var(--text2); }
+  .ni:active { background: rgba(255,255,255,.03); color: var(--text); }
+  .btn.bg:hover { border-color: var(--border); color: var(--text2); }
+  .btn.bg:active { border-color: var(--border2); color: var(--text); }
+  .btn.bp:hover  { background: var(--cyan); }
+  .btn.bp:active { filter: brightness(.88); }
+  .btn.bd:hover  { background: transparent; }
+  .btn.bd:active { background: rgba(239,68,68,.1); }
+  .btn.bw:hover  { background: transparent; }
+  .btn.bw:active { background: rgba(245,158,11,.1); }
+  .btn.bt:hover  { background: transparent; }
+  .btn.bt:active { background: rgba(0,184,148,.1); }
+  .btn.bp2:hover  { background: transparent; }
+  .btn.bp2:active { background: rgba(139,92,246,.1); }
+}
+
+/* ── Badges — liste mobile ── */
+.bgc-mob-list { display: flex; flex-direction: column; gap: 8px; }
+.bgc-mob {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px; transition: border-color .15s;
+}
+.bgc-mob.valid   { border-left: 3px solid var(--teal); }
+.bgc-mob.expired { border-left: 3px solid var(--red); opacity: .75; }
+.bgc-mob-top  { display: flex; align-items: center; gap: 12px; }
+.bgc-mob-i    { font-size: 30px; flex-shrink: 0; width: 38px; text-align: center; }
+.bgc-mob-info { flex: 1; min-width: 0; }
+.bgc-mob-info .bgc-n { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bgc-mob-info .bgc-u { font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; margin-top: 2px; }
+.bgc-mob-info .bgc-s { margin-top: 5px; }
+.bgc-mob-acts { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+.bgc-mob-acts .btn { width: 38px; height: 38px; padding: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; border-radius: 8px; }
+.encode-btn {
+  width: 100%; justify-content: center; margin-top: 11px;
+  min-height: 48px; font-size: 14px; font-weight: 600; border-radius: 9px; letter-spacing: .3px;
+}
+.bgc-mob-add {
+  background: var(--bg3); border: 2px dashed var(--border2); border-radius: 10px;
+  padding: 14px 16px; display: flex; align-items: center; gap: 10px;
+  cursor: pointer; color: var(--text2); font-size: 12px; min-height: 56px; transition: all .2s;
+}
+.bgc-mob-add:active { border-color: var(--cyan); background: rgba(0,200,240,.04); }
+
+/* ── MCT — cartes mobile ── */
+.mct-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 7px;
+}
+.mct-card:last-child { margin-bottom: 0; }
+.mct-card-hd { display: flex; justify-content: space-between; align-items: center; margin-bottom: 3px; }
+.mct-card-nm { font-size: 12px; font-weight: 600; font-family: 'DM Mono', monospace; color: var(--text); }
+.mct-card-uid { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--cyan); margin-bottom: 6px; }
+.mct-card-dates { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 4px; font-size: 10px; color: var(--text3); font-family: 'DM Mono', monospace; }
+
+/* ── Messages — conversation mobile (user uniquement) ── */
+@media (max-width: 540px) {
+  #p-usr-msgs .g2 { grid-template-columns: 1fr; }
+  /* Quand une conv est ouverte, le panel devient colonne flex à hauteur fixe */
+  #p-usr-msgs [id^="conv-panel-"]:has(.msg-th) {
+    display: flex; flex-direction: column;
+    height: calc(100svh - 200px); overflow: hidden;
+  }
+  #p-usr-msgs .msg-th { flex: 1; max-height: none; min-height: 0; overflow-y: auto; }
+  #p-usr-msgs .mc-wrap {
+    flex-shrink: 0; margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid var(--border); background: var(--bg2);
+  }
+}
+
+/* ── Demandes — bouton full-width mobile ── */
+@media (max-width: 540px) {
+  #p-usr-dem .dm-acts .btn,
+  #p-usr-mct > div:last-child .btn { width: 100%; justify-content: center; }
+}
 </style>
 </head>
 <body>
 
 <!-- ══ LOGIN ══ -->
 <div id="scr-login">
+  <button class="l-cfg-btn" id="cfg-btn" onclick="toggleSettings()" title="Paramètres de connexion">⚙</button>
   <div class="lw">
     <div class="lh">
       <div class="lh-mark">🏷️</div>
@@ -295,6 +418,29 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
       <div class="fi"><label class="fl">Mot de passe</label><input class="inp" id="lp" type="password" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"></div>
       <button class="btn-login" onclick="doLogin()">Connexion</button>
       <div class="lerr" id="lerr"></div>
+    </div>
+    <!-- Panneau paramètres (masqué par défaut) -->
+    <div class="l-cfg-panel hidden" id="cfg-panel">
+      <h3>⚙ Paramètres de connexion</h3>
+      <div class="fi">
+        <label class="fl">Hôte (URL de base)</label>
+        <div class="cfg-host-cur" id="cfg-host-cur"></div>
+        <input class="inp" id="cfg-host" placeholder="https://monserveur.example.com:8766" autocomplete="off" spellcheck="false">
+        <div class="cfg-hint" id="cfg-host-hint">HTTPS obligatoire · laisser vide pour accès local</div>
+      </div>
+      <div class="fi" style="margin-bottom:0">
+        <label class="fl">Dossier de téléchargement (smartphone)</label>
+        <div class="cfg-dl-row">
+          <span class="cfg-dl-name" id="cfg-dl-name">Téléchargements (défaut navigateur)</span>
+          <button class="cfg-dl-btn" id="cfg-dl-btn" onclick="pickDlDir()">Choisir…</button>
+        </div>
+        <button class="cfg-dl-clear hidden" id="cfg-dl-clear" onclick="clearDlDir()">↩ Réinitialiser (défaut)</button>
+        <div class="cfg-hint" id="cfg-dl-hint">Chrome / Edge · iOS Safari non supporté</div>
+      </div>
+      <div class="cfg-acts">
+        <button class="cfg-cancel" onclick="toggleSettings()">Annuler</button>
+        <button class="cfg-save" onclick="saveSettings()">Enregistrer</button>
+      </div>
     </div>
   </div>
 </div>
@@ -441,7 +587,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 <div class="mo-ov hidden" id="mo-new-badge" onclick="closeMoOv(event,'mo-new-badge')"><div class="mo" onclick="event.stopPropagation()">
   <h3>Nouveau badge</h3>
   <div class="fgi"><label class="fl">Nom</label><input class="inp" id="nb-name" placeholder="Ex: Badge Entrée"></div>
-  <div class="fgi"><label class="fl">UID (8 caractères hex)</label><input class="inp" id="nb-uid" placeholder="Ex: 4360273E" style="font-family:'DM Mono',monospace;" maxlength="8" oninput="this.value=this.value.toUpperCase()"></div>
+  <div class="fgi"><label class="fl">UID (8 caractères hex)</label><input class="inp" id="nb-uid" placeholder="Ex: 4360273E" style="font-family:'DM Mono',monospace;" maxlength="8" inputmode="text" autocomplete="off" autocorrect="off" spellcheck="false" oninput="this.value=this.value.toUpperCase()"></div>
   <div class="fgi"><label class="fl">Icône</label><div id="nb-icons" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;">
     <span onclick="selIcon(this,'nb')" data-icon="🔑" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--cyan);">🔑</span>
     <span onclick="selIcon(this,'nb')" data-icon="🚪" style="font-size:18px;cursor:pointer;padding:4px;border-radius:5px;border:1px solid var(--border);">🚪</span>

@@ -1,10 +1,131 @@
 // Badge Manager v2.2 — app.js — version unique consolidée
 
+// ─── CONFIG ───────────────────────────────────────────────
+function getCfg() {
+  try { return JSON.parse(localStorage.getItem('vigik_cfg')||'{}'); } catch { return {}; }
+}
+function saveCfg(data) {
+  localStorage.setItem('vigik_cfg', JSON.stringify({...getCfg(), ...data}));
+}
+
+// ─── INDEXEDDB — dossier de téléchargement ────────────────
+function _fsDb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('vigik_fs', 1);
+    r.onupgradeneeded = e => e.target.result.createObjectStore('h');
+    r.onsuccess = e => res(e.target.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function fsDirGet() {
+  try {
+    const db = await _fsDb();
+    return await new Promise(res => {
+      const g = db.transaction('h','readonly').objectStore('h').get('dl');
+      g.onsuccess = () => res(g.result||null);
+      g.onerror   = () => res(null);
+    });
+  } catch { return null; }
+}
+async function fsDirSet(handle) {
+  const db = await _fsDb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction('h','readwrite');
+    tx.objectStore('h').put(handle, 'dl');
+    tx.oncomplete = res; tx.onerror = rej;
+  });
+}
+async function fsDirClear() {
+  try {
+    const db = await _fsDb();
+    await new Promise(res => {
+      const tx = db.transaction('h','readwrite');
+      tx.objectStore('h').delete('dl');
+      tx.oncomplete = res; tx.onerror = res;
+    });
+  } catch {}
+}
+
+// ─── TÉLÉCHARGEMENT INTELLIGENT ───────────────────────────
+// Essaie d'écrire dans le dossier choisi (FSAA), sinon fallback
+async function downloadBlob(blob, filename) {
+  if ('showDirectoryPicker' in window) {
+    const handle = await fsDirGet();
+    if (handle) {
+      try {
+        let perm = await handle.queryPermission({mode:'readwrite'});
+        if (perm !== 'granted') perm = await handle.requestPermission({mode:'readwrite'});
+        if (perm === 'granted') {
+          const fh = await handle.getFileHandle(filename, {create:true});
+          const w  = await fh.createWritable();
+          await w.write(blob); await w.close();
+          toast(`✓ Sauvegardé → ${handle.name}/${filename}`, 'ok');
+          return;
+        }
+      } catch(e) {
+        if (e.name !== 'AbortError') console.warn('FSAA fallback:', e.message);
+      }
+    }
+  }
+  // Fallback — téléchargement standard navigateur
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('✓ MCT téléchargé', 'ok');
+}
+
+// ─── SÉLECTION DOSSIER MCT ────────────────────────────────
+async function pickDlDir() {
+  if (!('showDirectoryPicker' in window)) {
+    toast('Non supporté sur ce navigateur (iOS Safari)', 'err'); return;
+  }
+  try {
+    const handle = await window.showDirectoryPicker({mode:'readwrite', id:'vigik-mct'});
+    await fsDirSet(handle);
+    _dlDirUi(handle.name);
+    toast(`📂 Dossier : ${handle.name}`, 'ok');
+  } catch(e) {
+    if (e.name !== 'AbortError') toast(e.message||'Erreur sélection', 'err');
+  }
+}
+async function clearDlDir() {
+  await fsDirClear();
+  _dlDirUi(null);
+  toast('Dossier réinitialisé (Téléchargements)', 'ok');
+}
+function _dlDirUi(name) {
+  const nm = document.getElementById('cfg-dl-name');
+  const cl = document.getElementById('cfg-dl-clear');
+  if (!nm) return;
+  if (name) {
+    nm.textContent = `📂 ${name}`;
+    nm.style.color = 'var(--cyan)';
+    if (cl) cl.classList.remove('hidden');
+  } else {
+    nm.textContent = 'Téléchargements (défaut navigateur)';
+    nm.style.color = '';
+    if (cl) cl.classList.add('hidden');
+  }
+}
+async function initDlDirUi() {
+  const handle = await fsDirGet();
+  _dlDirUi(handle ? handle.name : null);
+  if (!('showDirectoryPicker' in window)) {
+    const hint = document.getElementById('cfg-dl-hint');
+    const btn  = document.getElementById('cfg-dl-btn');
+    if (hint) { hint.textContent = '⚠ Non supporté sur iOS Safari'; hint.className = 'cfg-hint warn'; }
+    if (btn)  btn.disabled = true;
+  }
+}
+
 // ─── STATE ────────────────────────────────────────────────
 const S = {
   token:null, role:null, login:null, userId:null,
   mustChangePwd:false,
   icons:{nb:'🔑',eb:'🔑',sb:'🔑'},
+  editBadgeCtx:'user',
   color:'#8b5cf6',
   currentConvPid:null, currentConvOtherId:null,
   groups:[], admins:[], users:[], contacts:[],
@@ -14,10 +135,12 @@ let _meInterval = null;
 
 // ─── API ──────────────────────────────────────────────────
 async function api(method, path, body=null, raw=false) {
+  const host = (getCfg().host||'').replace(/\/$/, '');
+  const url = host ? host+path : path;
   const opts = {method, headers:{'Content-Type':'application/json'}};
   if (S.token) opts.headers['Authorization'] = `Bearer ${S.token}`;
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(path, opts);
+  const r = await fetch(url, opts);
   if (raw) return r;
   const txt = await r.text();
   let data; try { data = JSON.parse(txt); } catch { data = {detail:txt}; }
@@ -98,6 +221,43 @@ function toggleSidebar(){
 }
 function closeSidebar(){
   document.getElementById('sb').classList.remove('open');
+}
+
+// ─── SETTINGS LOGIN ───────────────────────────────────────
+function toggleSettings() {
+  const panel = document.getElementById('cfg-panel');
+  const btn   = document.getElementById('cfg-btn');
+  const hidden = panel.classList.toggle('hidden');
+  btn.classList.toggle('active', !hidden);
+  if (!hidden) {
+    const cfg = getCfg();
+    document.getElementById('cfg-host').value = cfg.host||'';
+    const cur = document.getElementById('cfg-host-cur');
+    cur.textContent = cfg.host ? cfg.host : '';
+    cur.style.display = cfg.host ? 'block' : 'none';
+    const hint = document.getElementById('cfg-host-hint');
+    hint.textContent = 'HTTPS obligatoire · laisser vide pour accès local';
+    hint.className = 'cfg-hint';
+    // Charger le dossier de téléchargement (async)
+    initDlDirUi();
+  }
+}
+
+function saveSettings() {
+  const hostRaw = document.getElementById('cfg-host').value.trim();
+  const host    = hostRaw.replace(/\/$/, '');
+  const hint    = document.getElementById('cfg-host-hint');
+  const inp     = document.getElementById('cfg-host');
+  if (host && !host.startsWith('https://')) {
+    hint.textContent = '⚠ HTTPS obligatoire — l\'URL doit commencer par https://';
+    hint.className = 'cfg-hint warn';
+    inp.classList.add('inp-err');
+    setTimeout(()=>inp.classList.remove('inp-err'), 2000);
+    return;
+  }
+  saveCfg({host});
+  toggleSettings();
+  toast('Paramètres enregistrés', 'ok');
 }
 
 // ─── AUTH ─────────────────────────────────────────────────
@@ -379,6 +539,7 @@ async function loadSaBadges(){
       <span class="chip c-dispo">Disponible</span>
       <div style="display:flex;gap:5px;">
         <button class="btn bp2 sm" onclick="openAttrib('${b.id}','${b.name} — ${b.uid}')">Attribuer</button>
+        <button class="btn bg sm" onclick="openEditBadge('${b.id}','${b.name}','${b.uid}','${b.icon}','stock')">✏️</button>
         <button class="btn bd sm" onclick="confirmAction('Supprimer ce badge ?','',()=>delStock('${b.id}'))">🗑</button>
       </div>
     </div>`).join(''):'<div style="font-size:11px;color:var(--text3);text-align:center;padding:16px;">Aucun badge en stock — référencez-en avec le bouton ci-dessus</div>'}
@@ -658,14 +819,34 @@ async function loadUsrBadges(){
     const quota=dash.badge_quota||5;
     const pct=Math.min(100,Math.round(badges.length/quota*100));
     const now=Date.now();
-    let html=`<div class="lim-w"><div class="lim-ls"><span>Badges utilisés</span><span>${badges.length} / ${quota}</span></div><div class="lim-b"><div class="lim-f ${pct>=100?'wa':'ok'}" style="width:${pct}%"></div></div></div>
-    <div class="bg-grid">
-    ${badges.map(b=>{
+    const mob=window.innerWidth<=540;
+
+    const quotaBar=`<div class="lim-w"><div class="lim-ls"><span>Badges utilisés</span><span>${badges.length} / ${quota}</span></div><div class="lim-b"><div class="lim-f ${pct>=100?'wa':'ok'}" style="width:${pct}%"></div></div></div>`;
+
+    const badgeCards=badges.map(b=>{
       const valid=b.last_encoded&&(new Date(b.last_encoded.endsWith('Z')?b.last_encoded:b.last_encoded+'Z').getTime()>now-84*3600*1000);
       const cls=b.last_encoded?(valid?'valid':'expired'):'';
+      const statusChip=b.last_encoded?`<span class="chip ${valid?'c-ok':'c-err'}">${valid?'✓ Valide':'✗ Expiré'}</span>`:'<span class="chip c-info">Jamais encodé</span>';
+      if(mob){
+        return`<div class="bgc-mob ${cls}">
+          <div class="bgc-mob-top">
+            <span class="bgc-mob-i">${b.icon}</span>
+            <div class="bgc-mob-info">
+              <div class="bgc-n">${b.name}</div>
+              <div class="bgc-u">${b.uid}</div>
+              <div class="bgc-s" style="margin-top:5px;">${statusChip}</div>
+            </div>
+            <div class="bgc-mob-acts">
+              <button class="btn bg" onclick="openEditBadge('${b.id}','${b.name}','${b.uid}','${b.icon}')" title="Modifier">✏️</button>
+              <button class="btn bd" onclick="confirmAction('Supprimer ${b.name} ?','',()=>delBadge('${b.id}'))" title="Supprimer">🗑</button>
+            </div>
+          </div>
+          <button class="btn bp encode-btn" onclick="encodeBadge('${b.id}','${b.name}','${b.uid}')">⚡ Encoder</button>
+        </div>`;
+      }
       return`<div class="bgc ${cls}">
         <span class="bgc-i">${b.icon}</span><div class="bgc-n">${b.name}</div><div class="bgc-u">${b.uid}</div>
-        <div class="bgc-s">${b.last_encoded?`<span class="chip ${valid?'c-ok':'c-err'}">${valid?'✓ Valide':'✗ Expiré'}</span>`:'<span class="chip c-info">Jamais encodé</span>'}</div>
+        <div class="bgc-s">${statusChip}</div>
         <div class="bgc-e">${b.last_encoded?fmtDate(b.last_encoded):''}</div>
         <div style="display:flex;gap:4px;justify-content:center;margin-top:8px;">
           <button class="btn bp xs" onclick="encodeBadge('${b.id}','${b.name}','${b.uid}')">⚡ Encoder</button>
@@ -673,12 +854,19 @@ async function loadUsrBadges(){
           <button class="btn bd xs" onclick="confirmAction('Supprimer ${b.name} ?','',()=>delBadge('${b.id}'))">🗑</button>
         </div>
       </div>`;
-    }).join('')}
-    ${badges.length<quota
-      ?`<div class="bgc new-c" onclick="openMo('mo-new-badge')"><span style="font-size:22px;">+</span><div style="font-size:11px;margin-top:6px;">Nouveau badge</div><div style="font-size:9px;font-family:'DM Mono',monospace;margin-top:3px;">${quota-badges.length} restant(s)</div></div>`
-      :`<div class="bgc new-c" onclick="openRequest('badge_quota','Demande de badges supplémentaires')"><span style="font-size:22px;">📨</span><div style="font-size:11px;margin-top:6px;">Quota atteint</div><div style="font-size:9px;font-family:'DM Mono',monospace;margin-top:3px;">Demander + de badges</div></div>`}
-    </div>`;
-    el.innerHTML=html;
+    }).join('');
+
+    const addCard=badges.length<quota
+      ?(mob
+        ?`<div class="bgc-mob-add" onclick="openMo('mo-new-badge')"><span style="font-size:20px;">+</span><div><div style="font-weight:600;">Nouveau badge</div><div style="font-size:10px;color:var(--text3);font-family:'DM Mono',monospace;">${quota-badges.length} emplacement(s) disponible(s)</div></div></div>`
+        :`<div class="bgc new-c" onclick="openMo('mo-new-badge')"><span style="font-size:22px;">+</span><div style="font-size:11px;margin-top:6px;">Nouveau badge</div><div style="font-size:9px;font-family:'DM Mono',monospace;margin-top:3px;">${quota-badges.length} restant(s)</div></div>`)
+      :(mob
+        ?`<div class="bgc-mob-add" onclick="openRequest('badge_quota','Demande de badges supplémentaires')"><span style="font-size:20px;">📨</span><div><div style="font-weight:600;">Quota atteint</div><div style="font-size:10px;color:var(--text3);">Demander des badges supplémentaires</div></div></div>`
+        :`<div class="bgc new-c" onclick="openRequest('badge_quota','Demande de badges supplémentaires')"><span style="font-size:22px;">📨</span><div style="font-size:11px;margin-top:6px;">Quota atteint</div><div style="font-size:9px;font-family:'DM Mono',monospace;margin-top:3px;">Demander + de badges</div></div>`);
+
+    el.innerHTML=quotaBar+(mob
+      ?`<div class="bgc-mob-list">${badgeCards}${addCard}</div>`
+      :`<div class="bg-grid">${badgeCards}${addCard}</div>`);
   }catch(e){el.innerHTML=errHtml(e);}
 }
 
@@ -688,16 +876,41 @@ async function loadUsrMct(){
   try{
     const[quota,history]=await Promise.all([api('GET','/api/mct-quota'),api('GET','/api/mct-history')]);
     const pct=Math.min(100,Math.round(quota.used/quota.limit*100));
+    const mob=window.innerWidth<=540;
+
+    let histHtml;
+    if(mob){
+      histHtml=history.length
+        ?history.map(m=>{
+          const exp=new Date(m.expires_at.endsWith('Z')?m.expires_at:m.expires_at+'Z')<new Date();
+          return`<div class="mct-card">
+            <div class="mct-card-hd">
+              <span class="mct-card-nm">${m.badge_name||'?'}</span>
+              <span class="chip ${exp?'c-err':'c-ok'}">${exp?'Expiré':'Valide'}</span>
+            </div>
+            <div class="mct-card-uid">${m.badge_uid||'?'}</div>
+            <div class="mct-card-dates">
+              <span>Généré : ${fmtDate(m.created_at)}</span>
+              <span style="color:${exp?'var(--red)':'var(--amber)'};">Expire : ${fmtDate(m.expires_at)}</span>
+            </div>
+          </div>`;
+        }).join('')
+        :`<div style="text-align:center;padding:24px;font-size:11px;color:var(--text3);font-family:'DM Mono',monospace;">Aucun MCT généré</div>`;
+    } else {
+      histHtml=`<table class="tbl"><thead><tr><th>Badge</th><th>UID</th><th>Généré</th><th>Expire</th><th>Statut</th></tr></thead><tbody>
+      ${history.length?history.map(m=>{const exp=new Date(m.expires_at.endsWith('Z')?m.expires_at:m.expires_at+'Z')<new Date();return`<tr><td>${m.badge_name||'?'}</td><td class="mc">${m.badge_uid||'?'}</td><td style="font-size:10px;color:var(--text2);">${fmtDate(m.created_at)}</td><td style="font-size:10px;color:${exp?'var(--red)':'var(--amber)'};">${fmtDate(m.expires_at)}</td><td><span class="chip ${exp?'c-err':'c-ok'}">${exp?'Expiré':'Valide'}</span></td></tr>`;}).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--text3);">Aucun MCT généré</td></tr>'}
+      </tbody></table>`;
+    }
+
+    const rallongeBtn=quota.remaining===0
+      ?`<div style="margin-top:10px;"><button class="btn bw${mob?' encode-btn':' sm'}" onclick="openRequest('mct_rallonge','Demande de rallonge MCT')">📨 Demander une rallonge</button></div>`
+      :'';
+
     el.innerHTML=`<div class="card" style="margin-bottom:11px;">
       <div class="lim-ls" style="display:flex;justify-content:space-between;font-size:10px;font-family:'DM Mono',monospace;color:var(--text3);margin-bottom:4px;"><span>MCT utilisés (24h glissantes)</span><span>${quota.used} / ${quota.limit} — ${quota.remaining} restant(s)</span></div>
       <div class="lim-b"><div class="lim-f ${pct>=100?'wa':'ok'}" style="width:${pct}%"></div></div>
     </div>
-    <div class="card">
-      <table class="tbl"><thead><tr><th>Badge</th><th>UID</th><th>Généré</th><th>Expire</th><th>Statut</th></tr></thead><tbody>
-      ${history.length?history.map(m=>{const exp=new Date(m.expires_at.endsWith('Z')?m.expires_at:m.expires_at+'Z')<new Date();return`<tr><td>${m.badge_name||'?'}</td><td class="mc">${m.badge_uid||'?'}</td><td style="font-size:10px;color:var(--text2);">${fmtDate(m.created_at)}</td><td style="font-size:10px;color:${exp?'var(--red)':'var(--amber)'};">${fmtDate(m.expires_at)}</td><td><span class="chip ${exp?'c-err':'c-ok'}">${exp?'Expiré':'Valide'}</span></td></tr>`;}).join(''):'<tr><td colspan="5" style="text-align:center;color:var(--text3);">Aucun MCT généré</td></tr>'}
-      </tbody></table>
-    </div>
-    ${quota.remaining===0?`<div style="text-align:center;margin-top:10px;"><button class="btn bw sm" onclick="openRequest('mct_rallonge','Demande de rallonge MCT')">📨 Demander une rallonge</button></div>`:''}`;
+    <div class="card">${histHtml}</div>${rallongeBtn}`;
   }catch(e){el.innerHTML=errHtml(e);}
 }
 
@@ -1077,11 +1290,12 @@ async function createBadge(){
   }catch(e){toast(e.message,'err');}
 }
 
-function openEditBadge(id,name,uid,icon){
+function openEditBadge(id,name,uid,icon,ctx){
   document.getElementById('eb-id').value=id;
   document.getElementById('eb-name').value=name;
   document.getElementById('eb-uid').value=uid;
   S.icons.eb=icon;
+  S.editBadgeCtx=ctx||'user';
   document.querySelectorAll('#eb-icons span').forEach(s=>{s.style.borderColor=s.dataset.icon===icon?'var(--cyan)':'var(--border)';s.style.background=s.dataset.icon===icon?'rgba(0,200,240,.08)':'';});
   openMo('mo-edit-badge');
 }
@@ -1093,7 +1307,8 @@ async function saveEditBadge(){
   if(uid){const err=validateUID(uid);if(err){toast(err,'err');return;}}
   try{
     await api('PATCH',`/api/badges/${id}`,{name,uid:uid||undefined,icon:S.icons.eb});
-    toast('Badge mis à jour','ok');closeMo('mo-edit-badge');await loadUsrBadges();
+    toast('Badge mis à jour','ok');closeMo('mo-edit-badge');
+    if(S.editBadgeCtx==='stock') await loadSaBadges(); else await loadUsrBadges();
   }catch(e){toast(e.message,'err');}
 }
 
@@ -1113,10 +1328,8 @@ async function encodeBadge(bid,name,uid){
     clearInterval(iv);ov.classList.add('hidden');
     if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur encodage');}
     const blob=await resp.blob();
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');a.href=url;a.download=`badge_${name.replace(/\s+/g,'_')}_${uid}.mct`;
-    document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url);
-    toast('✓ MCT téléchargé','ok');await loadUsrBadges();
+    await downloadBlob(blob, `badge_${name.replace(/\s+/g,'_')}_${uid}.mct`);
+    await loadUsrBadges();
   }catch(e){clearInterval(iv);ov.classList.add('hidden');toast(e.message,'err');}
 }
 
@@ -1298,6 +1511,12 @@ document.addEventListener('DOMContentLoaded',()=>{
   // Enter sur le champ mot de passe login
   const lp=document.getElementById('lp');
   if(lp) lp.onkeydown=(e)=>{if(e.key==='Enter')doLogin();};
+  // Afficher l'hôte configuré sous le titre si non-défaut
+  const cfg=getCfg();
+  if(cfg.host){
+    const sub=document.querySelector('.lh p');
+    if(sub) sub.title=cfg.host;
+  }
 });
 
 console.log('[Badge Manager v2.2] Chargé ✓');
