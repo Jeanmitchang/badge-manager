@@ -6,15 +6,23 @@ Wants=network.target
 [Service]
 Type=simple
 User=%i
-WorkingDirectory=/home/%i/Documents/Vigik
-Environment="PATH=/home/%i/Documents/Vigik/venv/bin:/usr/bin:/bin"
-EnvironmentFile=/home/%i/Documents/Vigik/.env
-ExecStart=/home/%i/Documents/Vigik/venv/bin/python3 /home/%i/Documents/Vigik/server_v2.py
+# Adapter WorkingDirectory au chemin d'installation réel
+# Exemples : /opt/badge-manager, /home/%i/badge-manager, /srv/vigik
+WorkingDirectory=/opt/badge-manager
+EnvironmentFile=/opt/badge-manager/.env
+ExecStart=/opt/badge-manager/venv/bin/python3 /opt/badge-manager/server_v2.py
 Restart=on-failure
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=badge-manager-v2
+
+# Sécurité systemd
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/opt/badge-manager/data /opt/badge-manager/mct_output /opt/badge-manager/backups
+ProtectHome=yes
+PrivateTmp=yes
 
 [Install]
 WantedBy=multi-user.target

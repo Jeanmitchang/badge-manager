@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""server_v2.py — Badge Manager v2.1"""
-import asyncio,base64,hashlib,hmac,json,os,subprocess,time,psutil
+"""server_v2.py — Badge Manager v3.0"""
+import asyncio,base64,hashlib,hmac,json,os,secrets,subprocess,time,psutil
 from datetime import datetime,timedelta
 from pathlib import Path
 from fastapi import FastAPI,HTTPException,Depends,Request,Response
@@ -12,7 +12,7 @@ from pydantic import BaseModel,Field,field_validator
 import database as D
 
 BASE_DIR=Path(__file__).parent
-CONFIG={"vigik_exe":os.environ.get("VIGIK_EXE",str(BASE_DIR/"vigik_loader_cli.exe")),"cert_file":os.environ.get("VIGIK_CERT",str(BASE_DIR/"cert.txt")),"mct_output_dir":os.environ.get("VIGIK_MCT",str(BASE_DIR/"mct_output")),"host":os.environ.get("VIGIK_HOST","0.0.0.0"),"port":int(os.environ.get("VIGIK_PORT","8766")),"jwt_secret":os.environ.get("VIGIK_JWT_SECRET","change-this-secret-v2"),"ssl_cert":os.environ.get("VIGIK_SSL_CERT",str(BASE_DIR/"budgie-server.tail609373.ts.net.crt")),"ssl_key":os.environ.get("VIGIK_SSL_KEY",str(BASE_DIR/"budgie-server.tail609373.ts.net.key"))}
+CONFIG={"vigik_exe":os.environ.get("VIGIK_EXE",str(BASE_DIR/"vigik_loader_cli.exe")),"cert_file":os.environ.get("VIGIK_CERT",str(BASE_DIR/"cert.txt")),"mct_output_dir":os.environ.get("VIGIK_MCT",str(BASE_DIR/"mct_output")),"host":os.environ.get("VIGIK_HOST","0.0.0.0"),"port":int(os.environ.get("VIGIK_PORT","8766")),"jwt_secret":os.environ.get("VIGIK_JWT_SECRET",""),"ssl_cert":os.environ.get("VIGIK_SSL_CERT",""),"ssl_key":os.environ.get("VIGIK_SSL_KEY",""),"cors_origins":os.environ.get("VIGIK_CORS_ORIGINS","")}
 
 def _b64url(d):return base64.urlsafe_b64encode(d).rstrip(b"=").decode()
 def jwt_sign(p):
@@ -74,6 +74,31 @@ def validate_uid(uid:str):
     if uid in("00000000","FFFFFFFF"):return False,"UID invalide (valeur réservée)"
     return True,uid
 
+# ─── Rate limiting login ──────────────────────────────────────────────────────
+_login_attempts: dict[str, list[float]] = {}
+_LOGIN_MAX = 5          # max tentatives
+_LOGIN_WINDOW = 300     # fenêtre de 5 minutes
+_LOGIN_LOCKOUT = 900    # blocage 15 minutes après dépassement
+
+def _check_rate_limit(key: str) -> bool:
+    """Retourne True si la requête est autorisée, False si bloquée."""
+    now_t = time.time()
+    attempts = _login_attempts.get(key, [])
+    # Nettoyer les tentatives hors fenêtre de lockout
+    attempts = [t for t in attempts if now_t - t < _LOGIN_LOCKOUT]
+    _login_attempts[key] = attempts
+    if len(attempts) >= _LOGIN_MAX:
+        oldest = attempts[-_LOGIN_MAX]
+        if now_t - oldest < _LOGIN_LOCKOUT:
+            return False
+    return True
+
+def _record_failed_login(key: str):
+    _login_attempts.setdefault(key, []).append(time.time())
+
+def _clear_login_attempts(key: str):
+    _login_attempts.pop(key, None)
+
 _wine_sem=asyncio.Semaphore(1);MAX_QUEUE=5;_queue_count=0
 
 class LoginReq(BaseModel):login:str=Field(...,min_length=1,max_length=50);password:str=Field(...,min_length=1,max_length=14)
@@ -113,17 +138,32 @@ class DispatchReq(BaseModel):
     user_id:str|None=None
 
 app=FastAPI(title="Badge Manager v2",docs_url=None,redoc_url=None)
-app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
+_cors_origins=[o.strip() for o in CONFIG["cors_origins"].split(",") if o.strip()] if CONFIG["cors_origins"] else []
+app.add_middleware(CORSMiddleware,allow_origins=_cors_origins,allow_credentials=bool(_cors_origins),allow_methods=["GET","POST","PATCH","DELETE","OPTIONS"],allow_headers=["Authorization","Content-Type"])
 
 @app.middleware("http")
-async def _capture_ua(request:Request,call_next):
+async def _security_headers(request:Request,call_next):
     ua,dev=get_ua(request)
     D._ctx_ua.set(ua)
     D._ctx_device.set(dev)
-    return await call_next(request)
+    response=await call_next(request)
+    response.headers["X-Content-Type-Options"]="nosniff"
+    response.headers["X-Frame-Options"]="DENY"
+    response.headers["X-XSS-Protection"]="1; mode=block"
+    response.headers["Referrer-Policy"]="strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"]="camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"]="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+    return response
 
 @app.on_event("startup")
 async def startup():
+    # Vérifier / générer le secret JWT
+    if not CONFIG["jwt_secret"] or CONFIG["jwt_secret"].startswith("change-this"):
+        generated=secrets.token_urlsafe(48)
+        CONFIG["jwt_secret"]=generated
+        print(f"[!] VIGIK_JWT_SECRET non défini ou faible — secret généré automatiquement")
+        print(f"[!] Pour le rendre persistant, ajoutez dans .env :")
+        print(f"    VIGIK_JWT_SECRET={generated}")
     D.init_db();D.init_default_config()
     migrate_db()
     asyncio.create_task(_cleanup_loop());asyncio.create_task(_watchdog_loop())
@@ -135,10 +175,20 @@ async def me(p=Depends(require_auth)):
 
 @app.post("/api/login")
 async def login(req:LoginReq,request:Request):
-    u=D.get_user_by_login(req.login);ip=get_ip(request);ua,dev=get_ua(request)
+    ip=get_ip(request);ua,dev=get_ua(request)
+    rate_key=f"{ip}:{req.login}"
+    if not _check_rate_limit(rate_key):
+        D.log_event("connexion_rate_limited",user_login=req.login,ip=ip,user_agent=ua,device=dev)
+        raise HTTPException(429,"Trop de tentatives — réessayez dans quelques minutes")
+    u=D.get_user_by_login(req.login)
     if not u or not D.check_pwd(req.password,u["pwd_hash"]):
+        _record_failed_login(rate_key)
         D.log_event("connexion_echec",user_login=req.login,ip=ip,user_agent=ua,device=dev)
         raise HTTPException(401,"Identifiant ou mot de passe incorrect")
+    _clear_login_attempts(rate_key)
+    # Migration transparente SHA256 → bcrypt au login
+    if D._is_legacy_sha256(u["pwd_hash"]):
+        D.update_user(u["id"],pwd_hash=D.hash_pwd(req.password))
     if not u["is_active"]:raise HTTPException(403,"ACCOUNT_BLOCKED")
     ttl=u["jwt_ttl_hours"]
     token=jwt_sign({"sub":u["id"],"login":u["login"],"role":u["role"],"iat":int(time.time()),"exp":int(time.time())+ttl*3600})
@@ -470,9 +520,14 @@ def _encode_sync(uid,name,owner_id,login):
     try:r=subprocess.run(cmd,capture_output=True,text=True,timeout=30,env={**os.environ,"WINEDEBUG":"-all"})
     except subprocess.TimeoutExpired:raise HTTPException(500,"Timeout Wine")
     except FileNotFoundError:raise HTTPException(500,"Wine non installé")
-    if not jp.exists():raise HTTPException(500,f"Erreur vigik: {r.stderr[:200]}")
+    if not jp.exists():
+        D.log_event("vigik_error",detail={"stderr":r.stderr[:500],"uid":uid})
+        raise HTTPException(500,"Erreur d'encodage — contactez l'administrateur")
     try:mfd=_j2mfd(jp)
-    except Exception as e:jp.unlink(missing_ok=True);raise HTTPException(500,f"JSON→MFD: {e}")
+    except Exception as e:
+        jp.unlink(missing_ok=True)
+        D.log_event("vigik_mfd_error",detail={"error":str(e)[:200],"uid":uid})
+        raise HTTPException(500,"Erreur de conversion — contactez l'administrateur")
     jp.unlink(missing_ok=True);mp.write_text(_mfd2mct(mfd,uid,name),encoding="utf-8");return mp
 
 def _j2mfd(jp):
@@ -803,9 +858,13 @@ async def upd_cfg(req:ConfigUpdateReq,p=Depends(require_role("superadmin"))):
     return{"ok":True}
 
 @app.get("/api/health")
-async def health():
+async def health(p=Depends(require_role("superadmin"))):
     wo=subprocess.run(["which","wine"],capture_output=True).returncode==0
     return{"status":"ok","wine":wo,"vigik_exe":Path(CONFIG["vigik_exe"]).exists(),"cert":Path(CONFIG["cert_file"]).exists(),"disk":D.get_disk_usage(),"queue":_queue_count}
+
+@app.get("/api/ping")
+async def ping():
+    return{"status":"ok"}
 
 app.mount("/static",StaticFiles(directory=str(BASE_DIR/"static_v2")),name="static_v2")
 
@@ -839,7 +898,7 @@ async def _watchdog_loop():
 
 if __name__=="__main__":
     import uvicorn
-    sc=CONFIG["ssl_cert"] if Path(CONFIG["ssl_cert"]).exists() else None
-    sk=CONFIG["ssl_key"] if Path(CONFIG["ssl_key"]).exists() else None
-    print(f"[*] Badge Manager v2.1 — port {CONFIG['port']}")
+    sc=CONFIG["ssl_cert"] if CONFIG["ssl_cert"] and Path(CONFIG["ssl_cert"]).exists() else None
+    sk=CONFIG["ssl_key"] if CONFIG["ssl_key"] and Path(CONFIG["ssl_key"]).exists() else None
+    print(f"[*] Badge Manager v3.0 — port {CONFIG['port']}")
     uvicorn.run("server_v2:app",host=CONFIG["host"],port=CONFIG["port"],reload=False,ssl_certfile=sc,ssl_keyfile=sk)

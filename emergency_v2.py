@@ -93,11 +93,13 @@ def main():
         print(f"[✓] Compte débloqué : {sa['login']}")
 
     elif choice == "3":
-        secret = input("JWT secret (Entrée pour valeur par défaut du .env) : ").strip()
+        import os
+        secret = input("JWT secret (Entrée pour lire depuis .env) : ").strip()
         if not secret:
-            import os
-            secret = os.environ.get("VIGIK_JWT_SECRET",
-                                    "change-this-secret-v2-badge-manager")
+            secret = os.environ.get("VIGIK_JWT_SECRET", "")
+        if not secret:
+            print("[!] VIGIK_JWT_SECRET introuvable. Définissez-le dans .env ou saisissez-le.")
+            sys.exit(1)
         token = gen_emergency_token(sa["id"], secret)
         D.log_event("superadmin_emergency_access",
                     user_id=sa["id"], user_login=sa["login"],

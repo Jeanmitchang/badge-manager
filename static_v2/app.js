@@ -1,4 +1,7 @@
-// Badge Manager v2.2 — app.js — version unique consolidée
+// Badge Manager v3.0 — app.js — version unique consolidée
+
+// ─── SECURITY ────────────────────────────────────────────
+function esc(s){if(!s)return'';return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
 
 // ─── CONFIG ───────────────────────────────────────────────
 function getCfg() {
@@ -585,7 +588,7 @@ async function loadDemandes(cid){
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;">
         <div><div class="dm-t">${reqTypeLabel(r.type)}</div>
         <div class="dm-u">${r.requester_login||r.requester_id}</div>
-        <div class="dm-m">${r.motif||'Sans motif'} · ${fmtDate(r.created_at)}</div></div>
+        <div class="dm-m">${esc(r.motif)||'Sans motif'} · ${fmtDate(r.created_at)}</div></div>
         <span class="chip c-warn">En attente</span>
       </div>
       <div class="dm-acts">
@@ -633,7 +636,7 @@ async function loadMsgs(cid){
 async function loadConv(otherId,otherLogin,cid){
   S.currentConvOtherId=otherId;S.currentConvPid=cid;
   const panel=document.getElementById(`conv-panel-${cid}`);
-  panel.innerHTML=`<div class="ct">${otherLogin}</div>
+  panel.innerHTML=`<div class="ct">${esc(otherLogin)}</div>
     <div class="msg-th" id="conv-thread"></div>
     <div class="mc-wrap">
       <div style="flex:1;"><textarea class="mc-inp" id="conv-inp" rows="2" placeholder="Message... (max 280 car.)" maxlength="280" oninput="updC('conv-inp','conv-ctr')"></textarea><div class="mc-ctr" id="conv-ctr">0/280</div></div>
@@ -642,7 +645,7 @@ async function loadConv(otherId,otherLogin,cid){
   try{
     const msgs=await api('GET',`/api/messages/${otherId}`);
     const thread=document.getElementById('conv-thread');
-    thread.innerHTML=msgs.map(m=>`<div class="mi ${m.from_id===S.userId?'fa':'fu'}">${m.content}<div class="mm">${m.from_id===S.userId?'Moi':otherLogin} · ${fmtDate(m.created_at)}</div></div>`).join('');
+    thread.innerHTML=msgs.map(m=>`<div class="mi ${m.from_id===S.userId?'fa':'fu'}">${esc(m.content)}<div class="mm">${m.from_id===S.userId?'Moi':esc(otherLogin)} · ${fmtDate(m.created_at)}</div></div>`).join('');
     thread.scrollTop=thread.scrollHeight;
   }catch(e){}
 }
@@ -698,14 +701,14 @@ async function loadLogs(){
       const tp=l.event.includes('echec')||l.event.includes('error')?'err':l.event.includes('limit')||l.event.includes('delet')||l.event.includes('block')?'warn':l.event.includes('ok')||l.event.includes('created')||l.event.includes('generated')?'ok':'info';
       let detail='';try{const d=JSON.parse(l.detail||'{}');detail=d.badge||d.reason||d.action||d.name||'';}catch{}
       const devIco=l.device==='mobile'?'📱':l.device==='tablet'?'📟':l.device?'🖥':'';
-      const ip=l.ip&&l.ip!=='unknown'?`<span style="color:var(--text3);"> · ${l.ip}</span>`:'';
-      const role=l.role?`<span class="chip c-info" style="font-size:8px;padding:1px 5px;margin-left:3px;">${l.role}</span>`:'';
-      const ua=l.user_agent?`<div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;word-break:break-all;line-height:1.4;padding-left:2px;">${devIco} ${l.user_agent}</div>`:'';
+      const ip=l.ip&&l.ip!=='unknown'?`<span style="color:var(--text3);"> · ${esc(l.ip)}</span>`:'';
+      const role=l.role?`<span class="chip c-info" style="font-size:8px;padding:1px 5px;margin-left:3px;">${esc(l.role)}</span>`:'';
+      const ua=l.user_agent?`<div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;word-break:break-all;line-height:1.4;padding-left:2px;">${devIco} ${esc(l.user_agent)}</div>`:'';
       return`<div class="le">
         <div class="le-row">
           <span class="lt">${fmtDate(l.created_at,true)}</span>
           <span class="lev">${l.event}</span>
-          <span class="ld">${l.user_login||''}${role}${detail?' — '+detail:''}${ip}${ua?'':devIco?' '+devIco:''}</span>
+          <span class="ld">${esc(l.user_login)||''}${role}${detail?' — '+esc(detail):''}${ip}${ua?'':devIco?' '+devIco:''}</span>
         </div>
         ${ua}
       </div>`;
@@ -753,7 +756,7 @@ async function loadSaParams(){
     </div>
     <div class="card"><div class="ct">Procédure d'urgence</div>
       <p style="font-size:11px;color:var(--text2);margin-bottom:12px;line-height:1.7;">Accès SSH uniquement en cas de perte d'accès.</p>
-      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);">ssh budgie@100.108.233.43<br>cd ~/Documents/Vigik_v2<br>python3 emergency_v2.py</div>
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:10px;font-family:'DM Mono',monospace;font-size:10px;color:var(--cyan);">ssh utilisateur@votre-serveur<br>cd /chemin/vers/badge-manager<br>python3 emergency_v2.py</div>
     </div></div>`;
   }catch(e){el.innerHTML=errHtml(e);}
 }
@@ -945,7 +948,7 @@ async function loadUsrDem(){
   try{
     const reqs=await api('GET','/api/requests');
     if(!reqs.length){el.innerHTML=emptyHtml('Aucune demande en cours');return;}
-    el.innerHTML=`<div class="card" style="max-width:500px;">${reqs.map(r=>`<div class="dm"><div class="dm-t">${reqTypeLabel(r.type)}</div><div class="dm-m">${r.motif||'Sans motif'}</div><div style="margin-top:8px;"><span class="chip ${r.status==='pending'?'c-warn':r.status==='approved'?'c-ok':'c-err'}">${{pending:'En attente',approved:'Approuvée',refused:'Refusée',cancelled:'Annulée'}[r.status]||r.status}</span></div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px;">${fmtDate(r.created_at)}</div></div>`).join('')}</div>`;
+    el.innerHTML=`<div class="card" style="max-width:500px;">${reqs.map(r=>`<div class="dm"><div class="dm-t">${reqTypeLabel(r.type)}</div><div class="dm-m">${esc(r.motif)||'Sans motif'}</div><div style="margin-top:8px;"><span class="chip ${r.status==='pending'?'c-warn':r.status==='approved'?'c-ok':'c-err'}">${{pending:'En attente',approved:'Approuvée',refused:'Refusée',cancelled:'Annulée'}[r.status]||r.status}</span></div><div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:4px;">${fmtDate(r.created_at)}</div></div>`).join('')}</div>`;
   }catch(e){el.innerHTML=errHtml(e);}
 }
 

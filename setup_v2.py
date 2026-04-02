@@ -100,9 +100,10 @@ def main():
     print("     python3 server_v2.py")
     print()
     print("  Ou via systemd :")
-    print("     sudo systemctl start vigik-server-v2@budgie")
+    print("     sudo systemctl start vigik-server-v2@$(whoami)")
     print()
-    print(f"  URL : https://budgie-server.tail609373.ts.net:8766")
+    port = __import__('os').environ.get("VIGIK_PORT", "8766")
+    print(f"  URL : https://<votre-domaine>:{port}")
     print()
 
 

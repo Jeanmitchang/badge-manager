@@ -1,0 +1,29 @@
+services:
+  badge-manager:
+    build: .
+    container_name: badge-manager
+    restart: unless-stopped
+    ports:
+      - "${VIGIK_PORT:-8766}:8766"
+    volumes:
+      # Données persistantes
+      - ./data:/app/data
+      - ./mct_output:/app/mct_output
+      - ./backups:/app/backups
+      # Fichiers requis (montés en lecture seule)
+      - ./vigik_loader_cli.exe:/app/vigik_loader_cli.exe:ro
+      - ./cert.txt:/app/cert.txt:ro
+      # SSL (optionnel — décommenter et adapter)
+      # - ./ssl/cert.pem:/app/ssl/cert.pem:ro
+      # - ./ssl/key.pem:/app/ssl/key.pem:ro
+    env_file:
+      - .env
+    environment:
+      - VIGIK_HOST=0.0.0.0
+      - VIGIK_PORT=8766
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8766/api/ping')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

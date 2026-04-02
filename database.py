@@ -8,8 +8,10 @@ import sqlite3
 import uuid
 import hashlib
 import hmac as _hmac
+import os
 import time
 import json as _json
+import bcrypt
 from contextvars import ContextVar
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -19,7 +21,7 @@ from contextlib import contextmanager
 _ctx_ua: ContextVar[str] = ContextVar('ctx_ua', default='')
 _ctx_device: ContextVar[str] = ContextVar('ctx_device', default='')
 
-DB_PATH = Path(__file__).parent / "data" / "badge_manager.db"
+DB_PATH = Path(os.environ.get("VIGIK_DB_PATH", str(Path(__file__).parent / "data" / "badge_manager.db")))
 
 
 def get_conn() -> sqlite3.Connection:
@@ -180,10 +182,20 @@ def now() -> str:
     return datetime.utcnow().isoformat()
 
 def hash_pwd(password: str) -> str:
-    return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def _is_legacy_sha256(stored_hash: str) -> bool:
+    """Détecte un ancien hash SHA256 (64 hex chars) vs bcrypt ($2b$...)."""
+    return len(stored_hash) == 64 and not stored_hash.startswith("$")
 
 def check_pwd(password: str, stored_hash: str) -> bool:
-    return _hmac.compare_digest(hash_pwd(password), stored_hash)
+    if _is_legacy_sha256(stored_hash):
+        # Migration transparente : vérifie avec SHA256, puis upgrade vers bcrypt
+        legacy = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        if _hmac.compare_digest(legacy, stored_hash):
+            return True
+        return False
+    return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
 
 def validate_pwd(password: str) -> str | None:
     if len(password) < 6:

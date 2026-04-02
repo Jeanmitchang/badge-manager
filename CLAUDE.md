@@ -24,9 +24,9 @@ python3 emergency_v2.py
 # Manual database backup
 ./backup.sh
 
-# Systemd service management
-sudo systemctl start|stop|restart|status vigik-server-v2@budgie
-sudo journalctl -u vigik-server-v2@budgie -f
+# Systemd service management (replace <user> with the system user)
+sudo systemctl start|stop|restart|status vigik-server-v2@<user>
+sudo journalctl -u vigik-server-v2@<user> -f
 ```
 
 No test suite or linter is configured. Manual testing against the running server is the primary approach.
@@ -79,13 +79,15 @@ Single-page app with no framework and no build step. Routing is client-side; the
 
 ## Configuration
 
-Primary config in `.env` file:
-- `VIGIK_JWT_SECRET` — JWT signing secret (change in production)
+Primary config in `.env` file (see `.env.example` for template):
+- `VIGIK_JWT_SECRET` — JWT signing secret (auto-generated if absent, must be set for production)
 - `VIGIK_PORT` — server port (default 8766)
 - `VIGIK_EXE` — path to `vigik_loader_cli.exe`
 - `VIGIK_CERT` — path to Vigik cert file for encoding
 - `VIGIK_MCT` — MCT output directory
-- `VIGIK_SSL_CERT` / `VIGIK_SSL_KEY` — TLS certificate paths
+- `VIGIK_DB_PATH` — SQLite database file path (default `./data/badge_manager.db`)
+- `VIGIK_SSL_CERT` / `VIGIK_SSL_KEY` — TLS certificate paths (empty = HTTP only)
+- `VIGIK_CORS_ORIGINS` — allowed CORS origins, comma-separated (empty = same-origin only)
 
 Runtime config stored in the `config` database table (badge quotas, MCT daily limits, JWT TTL, etc.).
 
