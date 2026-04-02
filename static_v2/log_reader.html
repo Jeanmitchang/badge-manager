@@ -207,7 +207,8 @@ tbody tr:hover td{background:rgba(255,255,255,.012);}
           <th onclick="sortBy('user_login')">Utilisateur</th>
           <th onclick="sortBy('role')">Rôle</th>
           <th onclick="sortBy('ip')">IP</th>
-          <th>Appareil</th>
+          <th onclick="sortBy('device')">Appareil</th>
+          <th onclick="sortBy('user_agent')">User Agent</th>
           <th>Détail</th>
         </tr>
       </thead>
@@ -370,7 +371,7 @@ function applyFilters() {
     if (from   && (l.created_at||'') < from) return false;
     if (to     && (l.created_at||'') > to + 'T23:59:59') return false;
     if (search) {
-      const hay = [l.event, l.user_login, l.ip, l.role,
+      const hay = [l.event, l.user_login, l.ip, l.role, l.user_agent||'',
         typeof l.detail === 'object' ? JSON.stringify(l.detail) : (l.detail||'')
       ].join(' ').toLowerCase();
       if (!hay.includes(search)) return false;
@@ -404,7 +405,7 @@ function sortBy(key) {
     th.classList.remove('sorted-asc','sorted-desc');
   });
   const ths = document.querySelectorAll('thead th');
-  const keys = ['created_at','event','user_login','role','ip',null,null];
+  const keys = ['created_at','event','user_login','role','ip','device','user_agent',null];
   const idx = keys.indexOf(key);
   if (idx >= 0 && ths[idx]) {
     ths[idx].classList.add(SORT_ASC ? 'sorted-asc' : 'sorted-desc');
@@ -433,7 +434,8 @@ function renderPage() {
         <td class="mono">${l.user_login||'—'}</td>
         <td>${roleChip(l.role)}</td>
         <td class="mono" style="color:var(--text3);font-size:10px;">${l.ip&&l.ip!=='unknown'?l.ip:'—'}</td>
-        <td class="dev">${devIcon(l.device)}</td>
+        <td class="dev" title="${l.device||''}">${devIcon(l.device)}</td>
+        <td class="mono" style="font-size:9px;color:var(--text3);max-width:260px;word-break:break-all;line-height:1.4;">${l.user_agent||'—'}</td>
         <td><div class="det">${fmtDetail(det)}</div></td>
       </tr>`;
     }).join('');

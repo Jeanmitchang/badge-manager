@@ -311,6 +311,7 @@ function showBlockedOverlay(){
 }
 
 function doLogout(){
+  if(S.token){try{api('POST','/api/logout');}catch{}}
   if(_meInterval){clearInterval(_meInterval);_meInterval=null;}
   S.token=S.role=S.login=S.userId=null; S.mustChangePwd=false;
   document.getElementById('scr-app').classList.add('hidden');
@@ -338,11 +339,11 @@ async function doChangePwd(){
 
 // ─── NAV ──────────────────────────────────────────────────
 const NAVS={
-  superadmin:[{s:'Supervision'},{id:'sa-dash',i:'📊',l:'Tableau de bord',p:'sa-dash'},{id:'sa-journal',i:'📋',l:'Journal',p:'sa-journal'},{s:'Gestion'},{id:'sa-admins',i:'🛡️',l:'Admins',p:'sa-admins'},{id:'sa-users',i:'👥',l:'Utilisateurs et Groupes',p:'sa-users'},{id:'sa-badges',i:'🏷️',l:'Gestion des badges',p:'sa-badges'},{id:'sa-dem',i:'📨',l:'Demandes',p:'sa-dem',nb:1},{id:'sa-msgs',i:'💬',l:'Messages',p:'sa-msgs',nb:1},{s:'Système'},{id:'sa-params',i:'⚙️',l:'Paramètres',p:'sa-params'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
-  admin:[{s:'Supervision'},{id:'adm-dash',i:'📊',l:'Tableau de bord',p:'adm-dash'},{s:'Gestion'},{id:'adm-users',i:'👥',l:'Utilisateurs',p:'adm-users'},{id:'adm-grps',i:'🗂️',l:'Groupes',p:'adm-grps'},{id:'adm-dem',i:'📨',l:'Demandes',p:'adm-dem',nb:1},{id:'adm-msgs',i:'💬',l:'Messages',p:'adm-msgs',nb:1},{s:'Mon compte'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
-  user:[{s:'Mes accès'},{id:'usr-badges',i:'🏷️',l:'Mes badges',p:'usr-badges'},{id:'usr-mct',i:'📄',l:'Mes MCT',p:'usr-mct'},{s:'Communication'},{id:'usr-msgs',i:'💬',l:'Messages',p:'usr-msgs',nb:1},{id:'usr-dem',i:'📨',l:'Mes demandes',p:'usr-dem'},{s:'Mon compte'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
+  superadmin:[{s:'Supervision'},{id:'sa-dash',i:'📊',l:'Tableau de bord',p:'sa-dash'},{id:'sa-journal',i:'📋',l:'Journal',p:'sa-journal'},{s:'Gestion'},{id:'sa-admins',i:'🛡️',l:'Admins',p:'sa-admins'},{id:'sa-users',i:'👥',l:'Utilisateurs et Groupes',p:'sa-users'},{id:'sa-badges',i:'🏷️',l:'Gestion des badges',p:'sa-badges'},{id:'sa-dem',i:'📨',l:'Demandes',p:'sa-dem',nb:1},{id:'sa-msgs',i:'💬',l:'Messages',p:'sa-msgs',nb:1},{s:'Système'},{id:'sa-params',i:'⚙️',l:'Paramètres',p:'sa-params'},{id:'keys',i:'🗝️',l:'Clés MCT',p:'keys'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
+  admin:[{s:'Supervision'},{id:'adm-dash',i:'📊',l:'Tableau de bord',p:'adm-dash'},{s:'Gestion'},{id:'adm-users',i:'👥',l:'Utilisateurs',p:'adm-users'},{id:'adm-grps',i:'🗂️',l:'Groupes',p:'adm-grps'},{id:'adm-dem',i:'📨',l:'Demandes',p:'adm-dem',nb:1},{id:'adm-msgs',i:'💬',l:'Messages',p:'adm-msgs',nb:1},{s:'Outils'},{id:'keys',i:'🗝️',l:'Clés MCT',p:'keys'},{s:'Mon compte'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
+  user:[{s:'Mes accès'},{id:'usr-badges',i:'🏷️',l:'Mes badges',p:'usr-badges'},{id:'usr-mct',i:'📄',l:'Mes MCT',p:'usr-mct'},{s:'Communication'},{id:'usr-msgs',i:'💬',l:'Messages',p:'usr-msgs',nb:1},{id:'usr-dem',i:'📨',l:'Mes demandes',p:'usr-dem'},{s:'Outils'},{id:'keys',i:'🗝️',l:'Clés MCT',p:'keys'},{s:'Mon compte'},{id:'params',i:'🔑',l:'Mon compte',p:'params'}],
 };
-const TITLES={'sa-dash':'Tableau de bord','sa-journal':'Journal','sa-admins':'Admins','sa-users':'Utilisateurs et Groupes','sa-badges':'Gestion des badges','sa-dem':'Demandes','sa-msgs':'Messages','sa-params':'Paramètres','adm-dash':'Tableau de bord','adm-users':'Utilisateurs','adm-grps':'Groupes','adm-dem':'Demandes','adm-msgs':'Messages','usr-badges':'Mes badges','usr-mct':'Mes MCT','usr-msgs':'Messages','usr-dem':'Mes demandes','params':'Mon compte'};
+const TITLES={'sa-dash':'Tableau de bord','sa-journal':'Journal','sa-admins':'Admins','sa-users':'Utilisateurs et Groupes','sa-badges':'Gestion des badges','sa-dem':'Demandes','sa-msgs':'Messages','sa-params':'Paramètres','adm-dash':'Tableau de bord','adm-users':'Utilisateurs','adm-grps':'Groupes','adm-dem':'Demandes','adm-msgs':'Messages','usr-badges':'Mes badges','usr-mct':'Mes MCT','usr-msgs':'Messages','usr-dem':'Mes demandes','keys':'Clés MCT','params':'Mon compte'};
 
 function buildNav(role){
   const nav=document.getElementById('sb-nav');nav.innerHTML='';
@@ -397,8 +398,11 @@ async function openNotifPanel(){
     else{
       const ic={new_message:'💬',new_request:'📨',request_handled:'✓',badge_attributed:'🏷️',system_alert:'⚠️',group_change:'🔄',delete_user:'🗑',user_assigned:'👤',group_deleted:'🗑',dispatch:'↗'};
       notifs.slice(0,15).forEach(n=>{
-        html+=`<div style="padding:9px 14px;border-bottom:1px solid rgba(30,45,66,.4);${!n.is_read?'background:rgba(0,200,240,.04)':''}">
-          <div style="font-size:11px;font-weight:600;color:var(--text);">${ic[n.type]||'🔔'} ${n.title}</div>
+        html+=`<div id="notif-${n.id}" style="padding:9px 14px;border-bottom:1px solid rgba(30,45,66,.4);${!n.is_read?'background:rgba(0,200,240,.04)':''}">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:6px;">
+            <div style="font-size:11px;font-weight:600;color:var(--text);">${ic[n.type]||'🔔'} ${n.title}</div>
+            <span onclick="event.stopPropagation();deleteNotif('${n.id}')" style="cursor:pointer;font-size:14px;color:var(--text3);flex-shrink:0;line-height:1;" title="Supprimer">×</span>
+          </div>
           ${n.body?`<div style="font-size:10px;color:var(--text2);margin-top:2px;">${n.body}</div>`:''}
           <div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;margin-top:2px;">${fmtDate(n.created_at)}</div>
         </div>`;
@@ -415,9 +419,21 @@ async function openNotifPanel(){
   }catch(e){toast(e.message,'err');}
 }
 
+async function deleteNotif(id){
+  try{
+    const res=await api('DELETE',`/api/notifications/${id}`);
+    if(!res||!res.ok)throw new Error('Suppression échouée');
+    const el=document.getElementById('notif-'+id);
+    if(el)el.remove();
+    const panel=document.getElementById('notif-panel');
+    if(panel&&!panel.querySelector('[id^="notif-"]'))
+      panel.insertAdjacentHTML('beforeend','<div style="padding:20px;text-align:center;font-size:11px;color:var(--text3);">Aucune notification</div>');
+  }catch(e){toast(e.message,'err');}
+}
+
 // ─── PAGE LOADERS ──────────────────────────────────────────
 async function loadPage(pid){
-  const map={'sa-dash':loadSaDash,'sa-admins':loadSaAdmins,'sa-users':loadSaUsers,'sa-badges':loadSaBadges,'sa-dem':()=>loadDemandes('c-sa-dem'),'sa-msgs':()=>loadMsgs('c-sa-msgs'),'sa-journal':loadLogs,'sa-params':loadSaParams,'adm-dash':loadAdmDash,'adm-users':loadAdmUsers,'adm-grps':loadAdmGrps,'adm-dem':()=>loadDemandes('c-adm-dem'),'adm-msgs':()=>loadMsgs('c-adm-msgs'),'usr-badges':loadUsrBadges,'usr-mct':loadUsrMct,'usr-msgs':()=>loadMsgs('c-usr-msgs'),'usr-dem':loadUsrDem};
+  const map={'sa-dash':loadSaDash,'sa-admins':loadSaAdmins,'sa-users':loadSaUsers,'sa-badges':loadSaBadges,'sa-dem':()=>loadDemandes('c-sa-dem'),'sa-msgs':()=>loadMsgs('c-sa-msgs'),'sa-journal':loadLogs,'sa-params':loadSaParams,'adm-dash':loadAdmDash,'adm-users':loadAdmUsers,'adm-grps':loadAdmGrps,'adm-dem':()=>loadDemandes('c-adm-dem'),'adm-msgs':()=>loadMsgs('c-adm-msgs'),'usr-badges':loadUsrBadges,'usr-mct':loadUsrMct,'usr-msgs':()=>loadMsgs('c-usr-msgs'),'usr-dem':loadUsrDem,'keys':loadKeys};
   if(map[pid]) await map[pid]();
 }
 
@@ -684,10 +700,14 @@ async function loadLogs(){
       const devIco=l.device==='mobile'?'📱':l.device==='tablet'?'📟':l.device?'🖥':'';
       const ip=l.ip&&l.ip!=='unknown'?`<span style="color:var(--text3);"> · ${l.ip}</span>`:'';
       const role=l.role?`<span class="chip c-info" style="font-size:8px;padding:1px 5px;margin-left:3px;">${l.role}</span>`:'';
+      const ua=l.user_agent?`<div style="font-size:9px;color:var(--text3);font-family:'DM Mono',monospace;word-break:break-all;line-height:1.4;padding-left:2px;">${devIco} ${l.user_agent}</div>`:'';
       return`<div class="le">
-        <span class="lt">${fmtDate(l.created_at,true)}</span>
-        <span class="lev ${tp}">${l.event}</span>
-        <span class="ld">${l.user_login||''}${role}${detail?' — '+detail:''}${ip} ${devIco}</span>
+        <div class="le-row">
+          <span class="lt">${fmtDate(l.created_at,true)}</span>
+          <span class="lev">${l.event}</span>
+          <span class="ld">${l.user_login||''}${role}${detail?' — '+detail:''}${ip}${ua?'':devIco?' '+devIco:''}</span>
+        </div>
+        ${ua}
       </div>`;
     }).join('');
   }catch(e){el.innerHTML=errHtml(e);}
@@ -695,7 +715,12 @@ async function loadLogs(){
 
 async function exportLogs(format='json'){
   try{
-    const resp = await fetch(`/api/logs/export?format=${format}`, {
+    const from=document.getElementById('log-from')?.value||'';
+    const to=document.getElementById('log-to')?.value||'';
+    let qs=`format=${format}`;
+    if(from)qs+=`&date_from=${from}`;
+    if(to)qs+=`&date_to=${to}`;
+    const resp = await fetch(`/api/logs/export?${qs}`, {
       headers: {'Authorization': `Bearer ${S.token}`}
     });
     if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur export');}
@@ -1317,20 +1342,79 @@ async function delBadge(bid){
   catch(e){toast(e.message,'err');}
 }
 
+// ─── DÉTECTION ANDROID / NFC ──────────────────────────────
+function _isAndroid(){return /android/i.test(navigator.userAgent);}
+function _canShareFiles(){
+  try{return isSecureContext&&!!navigator.share&&!!navigator.canShare&&navigator.canShare({files:[new File(['x'],'x.mct',{type:'application/octet-stream'})]});}
+  catch{return false;}
+}
+
 // ─── ENCODE MCT ───────────────────────────────────────────
 async function encodeBadge(bid,name,uid){
   const ov=document.getElementById('enc-ov');const tx=document.getElementById('enc-tx');
   ov.classList.remove('hidden');
-  const steps=['Connexion serveur...','Wine → vigik_loader_cli...','Signature DSA...','Conversion MFD → MCT...','Téléchargement...'];
+  const steps=['Connexion serveur...','Wine → vigik_loader_cli...','Signature DSA...','Conversion MFD → MCT...','Finalisation...'];
   let si=0;const iv=setInterval(()=>{tx.textContent=steps[si%steps.length];si++;},700);
   try{
     const resp=await api('POST',`/api/badges/${bid}/encode`,null,true);
     clearInterval(iv);ov.classList.add('hidden');
     if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur encodage');}
     const blob=await resp.blob();
-    await downloadBlob(blob, `badge_${name.replace(/\s+/g,'_')}_${uid}.mct`);
+    const filename=`badge_${name.replace(/\s+/g,'_')}_${uid}.mct`;
+    if(_isAndroid()&&_canShareFiles()){
+      // Mode Android — modal choix écriture NFC ou téléchargement
+      const mo=document.getElementById('mo-nfc');
+      document.getElementById('nfc-badge-nm').textContent=name;
+      mo._blob=blob;mo._filename=filename;
+      openMo('mo-nfc');
+    }else{
+      await downloadBlob(blob,filename);
+    }
     await loadUsrBadges();
   }catch(e){clearInterval(iv);ov.classList.add('hidden');toast(e.message,'err');}
+}
+
+function nfcWriteBadge(){
+  // Doit rester non-async : Chrome Android exige que navigator.share()
+  // soit appelé dans la même activation utilisateur.
+  const mo=document.getElementById('mo-nfc');
+  // 1. Téléchargement immédiat (fichier sauvegardé localement)
+  downloadBlob(mo._blob,mo._filename);
+  // 2. Menu de partage natif Android — MCT apparaît si installé
+  const file=new File([mo._blob],mo._filename,{type:'application/octet-stream'});
+  navigator.share({files:[file],title:'Badge MCT — '+mo._filename})
+    .then(()=>closeMo('mo-nfc'))
+    .catch(e=>{
+      if(e.name==='AbortError'){closeMo('mo-nfc');return;}
+      closeMo('mo-nfc');
+    });
+}
+
+async function nfcDownloadOnly(){
+  const mo=document.getElementById('mo-nfc');
+  await downloadBlob(mo._blob,mo._filename);
+  closeMo('mo-nfc');
+}
+
+// ─── CLÉS MCT ─────────────────────────────────────────────
+async function loadKeys(){
+  const el=document.getElementById('c-keys');
+  el.innerHTML=`<div class="card" style="max-width:480px;">
+    <div class="ct">Fichier de clés Mifare Classic Tool</div>
+    <p style="font-size:12px;color:var(--text2);line-height:1.6;margin:10px 0 16px;">
+      Ce fichier contient les clés secteur nécessaires à la lecture et l'écriture des badges Vigik dans l'application <strong>Mifare Classic Tool</strong>.<br>
+      Importez-le dans MCT via <em>Paramètres → Gérer les fichiers de clés</em>.
+    </p>
+    <button class="btn bp" onclick="dlKeysFile()">⬇ Télécharger mct_badges.keys</button>
+  </div>`;
+}
+async function dlKeysFile(){
+  try{
+    const resp=await api('GET','/api/keys-file',null,true);
+    if(!resp.ok){const d=await resp.json();throw new Error(d.detail||'Erreur');}
+    const blob=await resp.blob();
+    await downloadBlob(blob,'mct_badges.keys');
+  }catch(e){toast(e.message,'err');}
 }
 
 // ─── STOCK BADGES ─────────────────────────────────────────

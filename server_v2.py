@@ -115,6 +115,13 @@ class DispatchReq(BaseModel):
 app=FastAPI(title="Badge Manager v2",docs_url=None,redoc_url=None)
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 
+@app.middleware("http")
+async def _capture_ua(request:Request,call_next):
+    ua,dev=get_ua(request)
+    D._ctx_ua.set(ua)
+    D._ctx_device.set(dev)
+    return await call_next(request)
+
 @app.on_event("startup")
 async def startup():
     D.init_db();D.init_default_config()
@@ -137,6 +144,11 @@ async def login(req:LoginReq,request:Request):
     token=jwt_sign({"sub":u["id"],"login":u["login"],"role":u["role"],"iat":int(time.time()),"exp":int(time.time())+ttl*3600})
     D.log_event("connexion_ok",user_id=u["id"],user_login=u["login"],role=u["role"],ip=ip,user_agent=ua,device=dev)
     return{"token":token,"role":u["role"],"login":u["login"],"must_change_pwd":bool(u["must_change_pwd"]),"ttl_hours":ttl}
+
+@app.post("/api/logout")
+async def logout(p=Depends(require_auth)):
+    D.log_event("deconnexion",user_id=p["sub"],user_login=p["login"],role=p["role"])
+    return{"ok":True}
 
 @app.post("/api/change-password")
 async def change_pwd(req:ChangePwdReq,p=Depends(require_auth)):
@@ -444,7 +456,8 @@ async def encode_badge(bid:str,p=Depends(require_auth)):
     dur=int(D.get_config("vigik_duration_hours","84"))
     D.record_mct(bid,uid,str(mp),sz,dur);D.update_badge(bid,last_encoded=D.now())
     D.log_event("mct_generated",user_id=uid,user_login=p["login"],detail={"badge":b["name"],"uid":b["uid"],"size":sz})
-    return FileResponse(path=str(mp),media_type="application/octet-stream",filename=mp.name,headers={"X-Badge-Name":b["name"],"X-Badge-UID":b["uid"]})
+    safe_name=b["name"].replace(" ","_").replace("/","-")[:50]+".mct"
+    return FileResponse(path=str(mp),media_type="application/octet-stream",filename=safe_name,headers={"X-Badge-Name":b["name"],"X-Badge-UID":b["uid"],"X-Content-Type-Options":"nosniff"})
 
 def _encode_sync(uid,name,owner_id,login):
     uid=uid.upper();dur=int(D.get_config("vigik_duration_hours","84"))
@@ -478,6 +491,13 @@ def _mfd2mct(mfd,uid="",name=""):
 
 @app.get("/api/mct-history")
 async def mct_history(p=Depends(require_auth)):return D.get_mct_history_by_user(p["sub"])
+
+@app.get("/api/keys-file")
+async def download_keys(p=Depends(require_auth)):
+    path=BASE_DIR/"mct_badges.keys"
+    if not path.exists():raise HTTPException(404,"mct_badges.keys introuvable")
+    D.log_event("keys_downloaded",user_id=p["sub"],user_login=p["login"])
+    return FileResponse(path=str(path),media_type="application/octet-stream",filename="mct_badges.keys",headers={"X-Content-Type-Options":"nosniff"})
 
 @app.get("/api/mct-quota")
 async def mct_quota(p=Depends(require_auth)):
@@ -516,6 +536,9 @@ async def handle_request(rid:str,body:dict,p=Depends(require_auth)):
         rq=D.get_user_by_id(req["requester_id"])
         if not rq or rq["admin_id"]!=p["sub"]:raise HTTPException(403)
     D.update_request(rid,status,p["sub"])
+    if status=="approved" and req["type"]=="mct_rallonge":
+        D.reset_mct_counter(req["requester_id"])
+        D.log_event("mct_counter_reset",user_id=p["sub"],user_login=p["login"],detail={"target":req["requester_id"]})
     rq=D.get_user_by_id(req["requester_id"])
     if rq:D.push_notif(rq["id"],"request_handled",f"Demande {'approuvée' if status=='approved' else 'refusée'} : {req['type'].replace('_',' ')}",ref_id=rid)
     return{"ok":True}
@@ -560,6 +583,11 @@ async def get_notifs(p=Depends(require_auth)):
 async def mark_read(p=Depends(require_auth)):
     D.mark_notifs_read(p["sub"]);return{"ok":True}
 
+@app.delete("/api/notifications/{nid}")
+async def delete_notif(nid:str,p=Depends(require_auth)):
+    if not D.delete_notif(p["sub"],nid):raise HTTPException(404)
+    return{"ok":True}
+
 @app.get("/api/dashboard")
 async def dashboard(p=Depends(require_auth)):
     role=p["role"]
@@ -577,31 +605,34 @@ async def get_logs(limit:int=100,event:str=None,p=Depends(require_role("superadm
     return D.get_logs(limit=min(limit,1000),event_filter=event)
 
 @app.get("/api/logs/export")
-async def export_logs(p=Depends(require_role("superadmin")),format:str="json"):
-    """Export du journal — format=json (défaut) ou format=csv."""
-    logs = D.get_logs(limit=100000)
-    from fastapi.responses import StreamingResponse
+async def export_logs(p=Depends(require_role("superadmin")),format:str="json",date_from:str=None,date_to:str=None):
+    """Export du journal — format=json (défaut) ou format=csv. Params optionnels : date_from, date_to (YYYY-MM-DD)."""
+    logs = D.get_logs(limit=100000,date_from=date_from,date_to=date_to)
+    CSV_FIELDS=["created_at","event","user_login","role","ip","user_agent","device","user_id","group_id","admin_id","detail"]
     if format == "csv":
         import csv, io
         output = io.StringIO()
-        if logs:
-            writer = csv.DictWriter(output, fieldnames=logs[0].keys())
-            writer.writeheader()
-            writer.writerows(logs)
+        writer = csv.DictWriter(output, fieldnames=CSV_FIELDS, extrasaction='ignore', restval='')
+        writer.writeheader()
+        for log in logs:
+            row={k:('' if v is None else v) for k,v in log.items()}
+            writer.writerow(row)
         content = output.getvalue().encode("utf-8-sig")
-        return StreamingResponse(iter([content]), media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename=logs_{D.now()[:10]}.csv"})
+        return Response(content=content, media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename=\"logs_{D.now()[:10]}.csv\""})
     # JSON (défaut)
     for log in logs:
         try: log["detail"] = json.loads(log.get("detail") or "{}")
         except: log["detail"] = {}
+        log.setdefault("user_agent", None)
+        log.setdefault("device", None)
     export = {
         "exported_at": D.now(), "exported_by": p["login"],
         "version": "2", "total": len(logs), "logs": logs,
     }
     content = json.dumps(export, ensure_ascii=False, indent=2).encode("utf-8")
-    return StreamingResponse(iter([content]), media_type="application/json",
-        headers={"Content-Disposition": f"attachment; filename=logs_{D.now()[:10]}.json"})
+    return Response(content=content, media_type="application/octet-stream",
+        headers={"Content-Disposition": f"attachment; filename=\"logs_{D.now()[:10]}.json\"","X-Content-Type-Options":"nosniff"})
 
 # ─── Import / Export badges ───────────────────────────────────────────────────
 
@@ -787,7 +818,10 @@ async def _cleanup_loop():
         n=D.cleanup_expired_mct()
         if n:D.log_event("mct_cleanup",detail={"deleted":n})
 
+_last_system_alert:float=0.0
+
 async def _watchdog_loop():
+    global _last_system_alert
     await asyncio.sleep(30)
     while True:
         try:
@@ -795,11 +829,11 @@ async def _watchdog_loop():
             D.log_event("watchdog_ok",detail={"ram":ram,"cpu":cpu,"disk":disk["pct"],"queue":_queue_count})
             alerts=[]
             if ram>85:alerts.append(f"RAM {ram}%")
-            if cpu>80:alerts.append(f"CPU {cpu}%")
             if disk["alert"]:alerts.append(f"Disque {disk['pct']}%")
-            if alerts:
+            if alerts and (time.time()-_last_system_alert)>3600:
                 sa=D.get_superadmin()
                 if sa:D.push_notif(sa["id"],"system_alert","⚠️ Alerte système",body=" · ".join(alerts))
+                _last_system_alert=time.time()
         except:pass
         await asyncio.sleep(60)
 

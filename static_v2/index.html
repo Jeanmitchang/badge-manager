@@ -165,10 +165,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 
 /* ── LOGS ── */
 .log-s{display:flex;flex-direction:column;gap:4px;max-height:260px;overflow-y:auto;}
-.le{display:flex;align-items:baseline;gap:9px;padding:5px 9px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;flex-wrap:wrap;}
+.le{display:flex;flex-direction:column;gap:2px;padding:5px 9px;border-radius:5px;font-size:11px;font-family:'DM Mono',monospace;}
 .le:hover{background:rgba(255,255,255,.02);}
-.lt{color:var(--text3);min-width:60px;}.lev{min-width:130px;}
-.lev.ok{color:var(--teal);}.lev.warn{color:var(--amber);}.lev.err{color:var(--red);}.lev.info{color:var(--cyan);}
+.le-row{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;}
+.lt{color:var(--text3);min-width:60px;}.lev{color:var(--text);min-width:130px;}
 .ld{color:var(--text2);}
 
 /* ── USER ROWS ── */
@@ -250,6 +250,11 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
 .enc-sp{width:48px;height:48px;border:2px solid var(--border2);border-top-color:var(--cyan);border-radius:50%;animation:sp 1s linear infinite;}
 @keyframes sp{to{transform:rotate(360deg)}}
 .enc-tx{font-family:'DM Mono',monospace;color:var(--cyan);font-size:13px;}
+/* ── MODAL NFC ── */
+.nfc-icon{font-size:40px;text-align:center;margin-bottom:4px;}
+.nfc-badge-nm{font-family:'DM Mono',monospace;font-size:12px;color:var(--cyan);text-align:center;margin-bottom:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.nfc-acts{display:flex;flex-direction:column;gap:9px;}
+.nfc-write-btn{padding:14px;font-size:15px;letter-spacing:.2px;border-radius:10px;}
 
 /* ── TOAST ── */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);padding:10px 20px;border-radius:10px;font-size:12px;font-family:'DM Mono',monospace;z-index:400;white-space:nowrap;max-width:90vw;text-align:center;}
@@ -492,7 +497,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="page" id="p-sa-badges"><div class="ph"><div class="ph-l"><h2>Gestion des badges</h2></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="exportBadges()">⬇ Exporter</button><button class="btn bg sm" onclick="openImportBadges()">⬆ Importer</button><button class="btn bp" onclick="openMo('mo-stock-badge')">+ Référencer</button></div></div><div id="c-sa-badges"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-sa-dem"><div class="ph"><div class="ph-l"><h2>Demandes</h2></div></div><div id="c-sa-dem"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-sa-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-sa-msgs"><div class="loading"><div class="ls"></div></div></div></div>
-    <div class="page" id="p-sa-journal"><div class="ph"><div class="ph-l"><h2>Journal</h2><p style="font-size:11px;color:var(--text2);">Activité récente — <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);">python3 log_tail.py -f</span> pour le suivi terminal</p></div><div style="display:flex;gap:7px;flex-wrap:wrap;"><button class="btn bg sm" onclick="loadLogs()">↻ Rafraîchir</button><button class="btn bt sm" onclick="exportLogs('json')">⬇ JSON</button><button class="btn bg sm" onclick="exportLogs('csv')">⬇ CSV</button><a class="btn bp2 sm" href="/static/log_reader.html" target="_blank">📋 Reader</a></div></div><div class="card"><div class="log-s" id="log-s"><div class="loading"><div class="ls"></div></div></div></div></div>
+    <div class="page" id="p-sa-journal"><div class="ph"><div class="ph-l"><h2>Journal</h2><p style="font-size:11px;color:var(--text2);">Activité récente — <span style="font-family:'DM Mono',monospace;font-size:10px;color:var(--text3);">python3 log_tail.py -f</span> pour le suivi terminal</p></div><div style="display:flex;gap:7px;flex-wrap:wrap;align-items:center;"><input type="date" id="log-from" class="inp" style="font-size:11px;padding:4px 8px;width:130px;" title="Date de début"><input type="date" id="log-to" class="inp" style="font-size:11px;padding:4px 8px;width:130px;" title="Date de fin"><button class="btn bg sm" onclick="loadLogs()">↻ Rafraîchir</button><button class="btn bt sm" onclick="exportLogs('json')">⬇ JSON</button><button class="btn bg sm" onclick="exportLogs('csv')">⬇ CSV</button><a class="btn bp2 sm" href="/static/log_reader.html" target="_blank">📋 Reader</a></div></div><div class="card"><div class="log-s" id="log-s"><div class="loading"><div class="ls"></div></div></div></div></div>
     <div class="page" id="p-sa-params"><div class="ph"><div class="ph-l"><h2>Paramètres</h2></div></div><div id="c-sa-params"><div class="loading"><div class="ls"></div></div></div></div>
 
     <!-- ADMIN -->
@@ -507,6 +512,9 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="page" id="p-usr-mct"><div class="ph"><div class="ph-l"><h2>Mes MCT</h2></div></div><div id="c-usr-mct"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-usr-msgs"><div class="ph"><div class="ph-l"><h2>Messages</h2></div></div><div id="c-usr-msgs"><div class="loading"><div class="ls"></div></div></div></div>
     <div class="page" id="p-usr-dem"><div class="ph"><div class="ph-l"><h2>Mes demandes</h2></div></div><div id="c-usr-dem"><div class="loading"><div class="ls"></div></div></div></div>
+
+    <!-- CLÉS MCT — partagé tous rôles -->
+    <div class="page" id="p-keys"><div class="ph"><div class="ph-l"><h2>Clés MCT</h2></div></div><div id="c-keys"></div></div>
 
     <!-- PARAMS commun -->
     <div class="page" id="p-params">
@@ -676,6 +684,17 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);min
     <div class="info-box" id="dp-note"></div>
   </div>
   <div class="mo-acts"><button class="btn bg" onclick="closeMo('mo-dispatch')">Annuler</button><button class="btn bp" onclick="doDispatch()">Dispatcher</button></div>
+</div></div>
+
+<!-- Modal NFC Android — écriture badge via MCT -->
+<div class="mo-ov hidden" id="mo-nfc" onclick="closeMoOv(event,'mo-nfc')"><div class="mo" onclick="event.stopPropagation()">
+  <div class="nfc-icon">📲</div>
+  <h3 style="text-align:center;">MCT généré</h3>
+  <div class="nfc-badge-nm" id="nfc-badge-nm"></div>
+  <div class="nfc-acts">
+    <button class="btn bp nfc-write-btn" onclick="nfcWriteBadge()">📲 Écrire sur le badge</button>
+    <button class="btn bg" onclick="nfcDownloadOnly()">📥 Télécharger</button>
+  </div>
 </div></div>
 
 <!-- Encode overlay -->

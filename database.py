@@ -10,9 +10,14 @@ import hashlib
 import hmac as _hmac
 import time
 import json as _json
+from contextvars import ContextVar
 from datetime import datetime, timedelta
 from pathlib import Path
 from contextlib import contextmanager
+
+# Contexte de la requête courante — peuplé par le middleware HTTP
+_ctx_ua: ContextVar[str] = ContextVar('ctx_ua', default='')
+_ctx_device: ContextVar[str] = ContextVar('ctx_device', default='')
 
 DB_PATH = Path(__file__).parent / "data" / "badge_manager.db"
 
@@ -450,6 +455,16 @@ def count_mct_last_24h(user_id: str) -> int:
             (user_id, cutoff)
         ).fetchone()[0]
 
+def reset_mct_counter(user_id: str) -> int:
+    """Supprime les entrées mct_history des 24h pour remettre le compteur à 0."""
+    cutoff = datetime.utcfromtimestamp(time.time() - 86400).isoformat()
+    with db() as conn:
+        n = conn.execute(
+            "DELETE FROM mct_history WHERE user_id=? AND created_at > ?",
+            (user_id, cutoff)
+        ).rowcount
+    return n
+
 def cleanup_expired_mct() -> int:
     ts = now()
     with db() as conn:
@@ -617,6 +632,11 @@ def mark_notifs_read(user_id: str):
     with db() as conn:
         conn.execute("UPDATE notifications SET is_read=1 WHERE user_id=? AND is_read=0", (user_id,))
 
+def delete_notif(user_id: str, notif_id: str) -> bool:
+    with db() as conn:
+        n = conn.execute("DELETE FROM notifications WHERE id=? AND user_id=?", (notif_id, user_id)).rowcount
+    return n > 0
+
 def count_unread_notifs(user_id: str) -> int:
     with db() as conn:
         return conn.execute(
@@ -630,25 +650,31 @@ def log_event(event: str, user_id: str = None, user_login: str = None,
               role: str = None, group_id: str = None, admin_id: str = None,
               ip: str = None, user_agent: str = None, device: str = None,
               detail: dict = None):
+    ua  = user_agent if user_agent is not None else (_ctx_ua.get() or None)
+    dev = device     if device     is not None else (_ctx_device.get() or None)
     with db() as conn:
         conn.execute("""
             INSERT INTO activity_log
             (id,event,user_id,user_login,role,group_id,admin_id,ip,user_agent,device,detail,created_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """, (new_id(), event, user_id, user_login, role, group_id, admin_id,
-              ip, user_agent, device, _json.dumps(detail or {}), now()))
+              ip, ua, dev, _json.dumps(detail or {}), now()))
 
-def get_logs(limit: int = 100, event_filter: str = None) -> list:
+def get_logs(limit: int = 100, event_filter: str = None,
+             date_from: str = None, date_to: str = None) -> list:
     with db() as conn:
+        conds, params = [], []
         if event_filter:
-            rows = conn.execute(
-                "SELECT * FROM activity_log WHERE event LIKE ? ORDER BY created_at DESC LIMIT ?",
-                (f"%{event_filter}%", limit)
-            ).fetchall()
-        else:
-            rows = conn.execute(
-                "SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?", (limit,)
-            ).fetchall()
+            conds.append("event LIKE ?"); params.append(f"%{event_filter}%")
+        if date_from:
+            conds.append("created_at >= ?"); params.append(date_from)
+        if date_to:
+            conds.append("created_at <= ?"); params.append(date_to + "T23:59:59")
+        where = ("WHERE " + " AND ".join(conds)) if conds else ""
+        rows = conn.execute(
+            f"SELECT * FROM activity_log {where} ORDER BY created_at DESC LIMIT ?",
+            params + [limit]
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
